@@ -33,11 +33,13 @@ class TrainingSetup:
 
         self.is_resume_mode = is_resume_mode
 
+        self.tokenizer = None
         self.vocab = None
         self.vocab_size = 0
 
         self.train_data = None
         self.val_data = None
+        self.test_data = None
 
         self.train_params = train_params
         self.num_train_size = 0
@@ -75,17 +77,29 @@ class TrainingSetup:
 
     def load_data(self, text_filename):
         """ Reads file, tokenize and prepare tensors to train """
-        tokenizer = Tokenizer()
+        self.tokenizer = Tokenizer()
         with open(text_filename, "r", encoding="utf-8") as f:
             text = f.read()
-            sentences, self.vocab = tokenizer.assemble_vocab(text)
+            sentences, self.vocab = self.tokenizer.assemble_vocab(text)
         self.vocab_size = len(list(self.vocab.keys()))
 
         # split into train / test by specifying portions e.g. 0.7 - 70% train, the rest 30% - validation:
         train_portion = 0.7
+        val_to_test_portion = 0.3
         num_train_samples = int(len(sentences) * train_portion)
-        self.train_data = torch.tensor(sentences[:num_train_samples])   # setup train data tensor
-        self.val_data  = torch.tensor(sentences[num_train_samples:])    # setup validation data tensor
+
+        # val and test are divided equally:
+        num_val_samples  = int(0.5 * (len(sentences) - num_train_samples))
+        num_test_samples = len(sentences) - num_train_samples - num_val_samples
+
+        # Setup tensors
+        self.train_data = torch.tensor(sentences[:num_train_samples], dtype=torch.long)
+        self.val_data  = torch.tensor(sentences[num_train_samples : num_train_samples + num_val_samples], dtype=torch.long)
+        self.test_data = torch.tensor(sentences[num_train_samples + num_val_samples:], dtype=torch.long)
+
+        print (f"Train samples {num_train_samples}")
+        print (f"Validation samples {num_val_samples}")
+        print (f"Test samples {num_test_samples}")
 
 
     def setup_nn(self):
@@ -129,7 +143,7 @@ class TrainingSetup:
                 tgt = batch[:, 1, :].to(self.device)
 
                 self.optimizer.zero_grad()
-                loss = self.nn_forward(src, tgt)
+                pred, loss = self.nn_forward(src, tgt)
                 loss.backward()
 
                 # reduce the gradient step if necessary (and too big)
@@ -191,8 +205,7 @@ class TrainingSetup:
         # Permute pred to have batch size first again
         pred = pred.permute(1, 2, 0)
         loss = self.criterion(pred, y_expected)
-        return loss
-
+        return pred, loss
 
 
     def validate(self, i_epoch):
@@ -205,7 +218,7 @@ class TrainingSetup:
                 src = batch[:, 0, :].to(self.device)
                 tgt = batch[:, 1, :].to(self.device)
 
-                loss = self.nn_forward(src, tgt)
+                pred, loss = self.nn_forward(src, tgt)
 
                 print("\t val batch =", idx, "/", len(batches), "| loss =", loss.item())
                 validation_loss += loss.item()
@@ -230,38 +243,51 @@ class TrainingSetup:
 
     def test(self):
         test_loss = 0
-        batches = torch.split(self.test_inputs, 1, dim=0)  # batch = 1 test sample always for test
-        target_batches = torch.split(self.test_targets, 1, dim=0)
-        test_target_extra_future_batches = torch.split(self.test_extra_future, 1, dim=0)
-
-        num_sign_coincides = 0
+        batches = torch.split(self.test_data, 1, dim=0)
 
         for idx, batch in enumerate(batches):
-            batch = batch.to(self.device)
-            target_batch = target_batches[idx].to(self.device)
-            ef_batch = test_target_extra_future_batches[idx].to(self.device)
+            src = batch[:, 0, :].to(self.device)
+            tgt = batch[:, 1, :].to(self.device)
 
-            out, loss = self.nn_forward(batch, target_batch)
+            pred_matrix, loss = self.nn_forward(src, tgt)
 
-            input_last_value = batch[0, 1, -1]
-            target_last_value = target_batch[0, 1, -1]
-            pred_last_value   = out[0, 0, 0]
+            predicted_sequence = self.predict(src)
 
-            delta_target = target_last_value - input_last_value
-            delta_pred = pred_last_value - input_last_value
-            if delta_pred * delta_target > 0:
-                num_sign_coincides += 1
+            print (f"Test sample idx {idx}:")
+            print (f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
+            print (f"tgt  = {self.tokenizer.decode_sentence(tgt[0, :].view(-1).tolist())}")
+            print (f"pred = {self.tokenizer.decode_sentence(predicted_sequence)}\n")
 
             print("Test batch ", idx, "/", len(batches), ", loss =", loss.item())
             test_loss += loss.item()
-            self.plot_sample(out.cpu().detach(),
-                             batch.cpu().detach(),
-                             test_target_extra_future_batches[idx].detach(),
-                             0,
-                             "test_plots/test_plot_" + str(idx) + ".jpg")
+
         print("................................................")
-        print("mean test loss", float(test_loss) / len(batches))
-        print(f"num_sign_coincides = {num_sign_coincides}, percentage = {num_sign_coincides / len(batches)} %")
+        print(f"mean test loss = {float(test_loss) / len(batches)}")
+
+
+    def predict(self, input_sequence, max_length=10):
+        self.nn_model.eval()
+        y_input = torch.tensor([[self.tokenizer.SOS]], dtype=torch.long, device=self.device)
+
+        for _ in range(max_length):
+            # Get source mask
+            tgt_mask = self.nn_model.get_tgt_mask(y_input.size(1)).to(self.device)
+
+            pred = self.nn_model(input_sequence, y_input, tgt_mask)
+
+            # next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+            next_item = pred[-1, :, :].argmax().item()  # num of the highest proba on the last dimension
+            next_item = torch.tensor([[next_item]], device=self.device)
+
+            # Concatenate previous input with predicted best word
+            y_input = torch.cat((y_input, next_item), dim=1)
+
+            # Stop if model predicts end of sentence
+            if next_item.view(-1).item() == self.tokenizer.EOS:
+                break
+
+        return y_input.view(-1).tolist()
+
 
 
     # def resample(self):
