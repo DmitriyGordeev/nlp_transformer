@@ -90,7 +90,7 @@ class TrainingSetup:
 
     def setup_nn(self):
         self.nn_model = model.Transformer(num_tokens=self.vocab_size,
-                                          dim_model=12,
+                                          dim_model=2,
                                           num_heads=1,
                                           num_encoder_layers=1,
                                           num_decoder_layers=1,
@@ -108,111 +108,107 @@ class TrainingSetup:
 
     def train(self):
         start_epoch = 0
+
+        # If we specified resume mode - load checkpoint
         if self.is_resume_mode:
             start_epoch = self.load_checkpoint("checkpoints/checkpoint.pt")
             self.train_params.epochs += start_epoch
-            print("start from epoch:", start_epoch, " till epoch:", self.train_params.epochs)
+            print("resume from epoch:", start_epoch, " till epoch:", self.train_params.epochs)
         else:
             print("training from scratch")
 
-        train_batches, target_batches, extra_future_batches = self.resample()
+        # split train data into batches
+        train_batches = torch.split(self.train_data, self.train_params.batch_size, dim=0)
 
         for i_epoch in range(start_epoch, self.train_params.epochs):
-            # create random sub samples to select batches from:
-            if i_epoch > 0 and i_epoch % self.data_params.n_epochs_resample == 0:
-                print("[Resampling]")
-                train_batches, target_batches, extra_future_batches = self.resample()
 
-            total_loss = 0
+            epoch_loss = 0      # reset before each new epoch
 
             for batch_index, batch in enumerate(train_batches):
-                batch = batch.to(self.device)
-                target_batch = target_batches[batch_index].to(self.device)
-                ef_batch = extra_future_batches[batch_index].to(self.device)
+                src = batch[:, 0, :].to(self.device)
+                tgt = batch[:, 1, :].to(self.device)
 
                 self.optimizer.zero_grad()
-
-                out, loss = self.nn_action(batch, target_batch)
-
+                loss = self.nn_forward(src, tgt)
                 loss.backward()
 
-                self.clip_grad_norm()
-                grad_norm = self.get_grad_norm()
+                # reduce the gradient step if necessary (and too big)
+                if self.train_params.grad_norm_clip != 0:
+                    self.clip_grad_norm()
 
+                grad_norm = self.get_grad_norm()
                 self.optimizer.step()
 
+                # print status
                 print(f" epoch {i_epoch} / {self.train_params.epochs - 1},"
                       f" batch {batch_index} / {len(train_batches) - 1},"
                       f" loss = {loss.item()} |"
                       f" Grad norm = {grad_norm}")
 
+                # Accumulate loss obtained for every batch
                 with torch.no_grad():
-                    total_loss += loss.item()
-                    if batch_index == 0:
-                        index_train_plot = 0
-                        self.plot_sample(out.cpu().detach(),
-                                         batch.cpu().detach(),
-                                         extra_future_batches[batch_index].cpu().detach(),
-                                         index_train_plot,
-                                         "train_plots/train_pred_" + str(i_epoch) + ".jpg")
+                    epoch_loss += loss.item()
 
-            total_loss = float(total_loss) / len(train_batches)
-            self.recorded_train_loss.append(total_loss)
+            # get average loss across all batches in this epoch
+            epoch_loss = float(epoch_loss) / len(train_batches)
+            self.recorded_train_loss.append(epoch_loss)
             if len(self.recorded_train_loss) > 2000:
                 self.recorded_train_loss = self.recorded_train_loss[-2000:]
 
-            print("Train loss ", total_loss, "....")
+            print("Train loss ", epoch_loss, "....")
 
             self.validate(i_epoch)
 
             self.scheduler.step()
 
+            # Saving training snapshot every 20 epochs
+            # snapshot = (epoch + model's params + optimizer + scheduler)
             if i_epoch % 20 == 0:
-                self.plot_losses(100)
-                self.plot_losses(500)
-                self.plot_losses()
-
-            if i_epoch % 20 == 0:
-                self.save_checkpoint(i_epoch, "checkpoints/checkpoint.pt")
+                self.save_checkpoint(i_epoch, "checkpoints/checkpoint.pt")      # this overwrites previously saved snapshot
                 self.remove_checkpoint_log_files("checkpoints/*.log")
                 f_write_epoch = open("checkpoints/" + str(i_epoch) + ".log",
                                      "w")  # just create a file to indicate what epoch number was saved the last
                 f_write_epoch.close()
 
 
-    def nn_action(self, input_batch, target_batch):
-        out = self.nn_model(input_batch[:, 1:, :])
-        tb1 = target_batch[:, 1:2, 99:100]
-        tb2 = target_batch[:, 1:2, -1:]
-        tb = torch.cat((tb1, tb2), dim=2)
+    def nn_forward(self, src, tgt):
+        """ Helper function to be invoked everywhere on training, validation and test stages
+        :param src:
+        :param tgt:
+        :return: loss
+        """
+        # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
+        y_input = tgt[:, :-1]
+        y_expected = tgt[:, 1:]
 
-        loss = self.criterion(out, tb)
-        return out, loss
+        # Get mask to mask out the next words.
+        sequence_length = y_input.size(1)
+        tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+
+        # Standard training except we pass in y_input and tgt_mask
+        pred = self.nn_model(src, y_input, tgt_mask)
+
+        # Permute pred to have batch size first again
+        pred = pred.permute(1, 2, 0)
+        loss = self.criterion(pred, y_expected)
+        return loss
+
 
 
     def validate(self, i_epoch):
         with torch.no_grad():
-            batches = torch.split(self.val_inputs, self.train_params.val_batch_size, dim=0)
-            target_batches = torch.split(self.val_targets, self.train_params.val_batch_size, dim=0)
-            val_extra_fut_batches = torch.split(self.val_extra_future, self.train_params.val_batch_size, dim=0)
+
+            batches = torch.split(self.val_data, self.train_params.val_batch_size, dim=0)
             validation_loss = 0
+
             for idx, batch in enumerate(batches):
+                src = batch[:, 0, :].to(self.device)
+                tgt = batch[:, 1, :].to(self.device)
 
-                batch = batch.to(self.device)
-                target_batch = target_batches[idx].to(self.device)
-                ef_batch = val_extra_fut_batches[idx].to(self.device)
-
-                out, loss = self.nn_action(batch, target_batch)
+                loss = self.nn_forward(src, tgt)
 
                 print("\t val batch =", idx, "/", len(batches), "| loss =", loss.item())
                 validation_loss += loss.item()
-
-                if idx == 0:
-                    self.plot_sample(out.cpu().detach(),
-                                     batch.cpu().detach(),
-                                     val_extra_fut_batches[idx].detach(),
-                                     0,
-                                     "val_plots/val_plot_" + str(i_epoch) + ".jpg")
 
             validation_loss = float(validation_loss) / len(batches)
 
@@ -228,9 +224,8 @@ class TrainingSetup:
                 print (f"[Saving best validation checkpoint] "
                        f"previous val loss = {self.best_val_loss_so_far},"
                        f" current = {validation_loss}")
-                self.save_checkpoint(i_epoch, f"best_model_so_far/checkpoint.{i_epoch}.pt")
+                self.save_checkpoint(i_epoch, f"best_val_model_so_far/checkpoint.{i_epoch}.pt")
                 self.best_val_loss_so_far = validation_loss
-
 
 
     def test(self):
@@ -246,7 +241,7 @@ class TrainingSetup:
             target_batch = target_batches[idx].to(self.device)
             ef_batch = test_target_extra_future_batches[idx].to(self.device)
 
-            out, loss = self.nn_action(batch, target_batch)
+            out, loss = self.nn_forward(batch, target_batch)
 
             input_last_value = batch[0, 1, -1]
             target_last_value = target_batch[0, 1, -1]

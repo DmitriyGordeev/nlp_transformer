@@ -51,7 +51,6 @@ class Tokenizer:
         #
         # encoded_sentences = list(filter((0).__ne__, encoded_sentences))
 
-
         text = text.replace(". ", " ")
         text = re.sub("\s{2,}", " ", text)
         encoded_text = self.encode_sentence(text)
