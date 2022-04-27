@@ -17,21 +17,18 @@ class Tokenizer:
 
         text_without_dots = prepared_text.replace(".", "")
         words = text_without_dots.split(' ')
+        words = list(filter(('').__ne__, words))
 
         vocab = Counter(words)      # create a dictionary
         vocab = sorted(vocab, key=vocab.get, reverse=True)
 
         # map words to unique indices
-        # ind + 3 because 0, 1, 2 already occupied
+        # ind + 3 - because we add 3 special tokens: SOS, EOS, UNK
         self.word2idx = {word: ind + 3 for ind, word in enumerate(vocab)}
-        if '' in self.word2idx:
-            del self.word2idx['']
-
-        self.UNK = len(self.word2idx)    # todo: what if set it to 0 ?
 
         self.word2idx["<SOS>"] = self.SOS
         self.word2idx["<EOS>"] = self.EOS
-        self.word2idx["<UNK>"] = self.UNK = len(self.word2idx)
+        self.word2idx["<UNK>"] = self.UNK
 
         return self.get_encoded_data(prepared_text)
 

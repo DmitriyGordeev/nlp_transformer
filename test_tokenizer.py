@@ -62,5 +62,3 @@ class TestTextConverter(unittest.TestCase):
 
         train_data_tensor = torch.tensor(train_data, dtype=torch.long)
 
-        pass
-

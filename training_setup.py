@@ -18,7 +18,7 @@ class TrainParams:
     def __init__(self, epochs, learning_rate, inference_max_len, grad_norm_clip, batch_size, val_batch_size):
         self.epochs = epochs
         self.learning_rate = learning_rate
-        self.inference_max_len = inference_max_len      # limit on max elements to predict on the final test stage
+        self.max_inference_len = inference_max_len      # limit on max elements to predict on the final test stage
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size    # if validation set is too big
@@ -253,15 +253,15 @@ class TrainingSetup:
             pred_matrix, loss = self.nn_forward(src, tgt)
 
             # predict completely unseen sequence
-            predicted_sequence = self.predict(src, max_length=self.train_params.inference_max_len)
+            predicted_sequence = self.predict(src, max_length=self.train_params.max_inference_len)
 
             # decode src, tgt and prediction into human-readable string
-            print (f"Test sample idx {idx}:")
+            print (f"Test sample idx {idx}, max_inference_len = {self.train_params.max_inference_len} : ")
             print (f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
             print (f"tgt  = {self.tokenizer.decode_sentence(tgt[0, :].view(-1).tolist())}")
             print (f"pred = {self.tokenizer.decode_sentence(predicted_sequence)}\n")
 
-            print("Test batch ", idx, "/", len(batches), ", loss =", loss.item())
+            print("Test batch ", idx, "/", len(batches) - 1, ", loss =", loss.item())
             test_loss += loss.item()
 
         print("................................................")
