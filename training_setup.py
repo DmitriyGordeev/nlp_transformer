@@ -104,10 +104,10 @@ class TrainingSetup:
 
     def setup_nn(self):
         self.nn_model = model.Transformer(num_tokens=self.vocab_size,
-                                          dim_model=32,
-                                          num_heads=8,
-                                          num_encoder_layers=4,
-                                          num_decoder_layers=4,
+                                          dim_model=12,
+                                          num_heads=2,
+                                          num_encoder_layers=1,
+                                          num_decoder_layers=1,
                                           dropout_p=0.01).to(self.device)
         self.nn_model.to(self.device)
 
