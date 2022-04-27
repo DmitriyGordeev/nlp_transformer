@@ -21,7 +21,7 @@ class TrainParams:
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size    # if validation set is too big
-                                                # we process it by batches to avoid cpu/gpu memory error
+                                                # we process it by batches to avoid cpu/gpu memory overflow
 
 
 class TrainingSetup:
@@ -339,40 +339,6 @@ class TrainingSetup:
         plot.clf()
 
 
-    def plot_sample(self, pred, past, target_extra_fut, idx_sample, jpg_filepath):
-        plot.figure(figsize=(12, 8), dpi=100)
-
-        # past = past[idx_sample, -1, :]
-        # pred = pred[idx_sample, -1, :]
-        # target = target_extra_fut[idx_sample, -1, :]
-
-        L = self.data_params.input_sequence_len
-        f1 = int(self.data_params.future_sequence_len / 2)
-        f2 = self.data_params.future_sequence_len
-
-        past = past[idx_sample, 1, :]
-        pred1 = pred[idx_sample, 0, 0]
-        pred2 = pred[idx_sample, 0, 1]
-        target1 = target_extra_fut[idx_sample, 1, f1]
-        target2 = target_extra_fut[idx_sample, 1, -1]
-
-        plot.subplot(1, 1, 1)
-        plot.grid()
-        plot.plot(numpy.arange(L), past, "b:", linewidth=2.0)
-        plot.plot(numpy.arange(L), past, "b.", linewidth=2.0)
-
-        plot.plot(L + f1, target1, "go", linewidth=2.0)
-        plot.plot(L + f2, target2, "go", linewidth=2.0)
-        plot.plot(L + f1, pred1, "ro", linewidth=2.0)
-        plot.plot(L + f2, pred2, "ro", linewidth=2.0)
-
-        plot.savefig(jpg_filepath)
-        plot.close()
-        plot.clf()
-
-
-
-
     def run(self):
         """ encapsulates other functions and runs them in the right order """
         self.setup_nn()
@@ -380,10 +346,9 @@ class TrainingSetup:
         self.train()
         self.test()
 
+
     def set_optimizer_lr(self, new_learning_rate):
+        """ Alters optimizer's learning rate on the go if necessary """
         for g in self.optimizer.param_groups:
             g['lr'] = new_learning_rate
 
-    @staticmethod
-    def flip_from_probability(prob):
-        return True if random.random() < prob else False
