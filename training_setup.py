@@ -15,9 +15,10 @@ matplotlib.use("Agg")
 
 
 class TrainParams:
-    def __init__(self, epochs, learning_rate, grad_norm_clip, batch_size, val_batch_size):
+    def __init__(self, epochs, learning_rate, inference_max_len, grad_norm_clip, batch_size, val_batch_size):
         self.epochs = epochs
         self.learning_rate = learning_rate
+        self.inference_max_len = inference_max_len      # limit on max elements to predict on the final test stage
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size    # if validation set is too big
@@ -103,10 +104,10 @@ class TrainingSetup:
 
     def setup_nn(self):
         self.nn_model = model.Transformer(num_tokens=self.vocab_size,
-                                          dim_model=2,
-                                          num_heads=1,
-                                          num_encoder_layers=1,
-                                          num_decoder_layers=1,
+                                          dim_model=32,
+                                          num_heads=8,
+                                          num_encoder_layers=4,
+                                          num_decoder_layers=4,
                                           dropout_p=0.01).to(self.device)
         self.nn_model.to(self.device)
 
@@ -248,10 +249,13 @@ class TrainingSetup:
             src = batch[:, 0, :].to(self.device)
             tgt = batch[:, 1, :].to(self.device)
 
+            # calculate loss
             pred_matrix, loss = self.nn_forward(src, tgt)
 
-            predicted_sequence = self.predict(src)
+            # predict completely unseen sequence
+            predicted_sequence = self.predict(src, max_length=self.train_params.inference_max_len)
 
+            # decode src, tgt and prediction into human-readable string
             print (f"Test sample idx {idx}:")
             print (f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
             print (f"tgt  = {self.tokenizer.decode_sentence(tgt[0, :].view(-1).tolist())}")
@@ -289,23 +293,6 @@ class TrainingSetup:
         return y_input.view(-1).tolist()
 
 
-
-    # def resample(self):
-    #     n_sub_sample = int(self.num_train_size * self.data_params.subsample_portion)
-    #     rand_indices = torch.randperm(self.num_train_size)  # generate random indexes from 0 up to num_train_size - 1
-    #     rand_indices = rand_indices[:n_sub_sample]  # select first n_sub_sample random indexes
-    #     rand_train_sub_sample = self.train_inputs[rand_indices, :, :].to(
-    #         self.device)  # select random training samples from train_inputs
-    #     # and send to gpu
-    #     rand_train_targets_sub_sample = self.train_targets[rand_indices, :].to(self.device)
-    #     rand_train_extrafuture_sub_sample = self.train_extra_future[rand_indices, :].to(self.device)
-    #
-    #     train_batches = torch.split(rand_train_sub_sample, self.train_params.batch_size, dim=0)
-    #     target_batches = torch.split(rand_train_targets_sub_sample, self.train_params.batch_size, dim=0)
-    #     extra_future_batches = torch.split(rand_train_extrafuture_sub_sample, self.train_params.batch_size, dim=0)
-    #     return train_batches, target_batches, extra_future_batches
-
-
     def save_checkpoint(self, current_epoch, checkpoint_filepath):
         checkpoint_state_dict = {
             'epoch': current_epoch,
@@ -327,6 +314,9 @@ class TrainingSetup:
 
 
     def load_checkpoint(self, checkpoint_fpath):
+        if not os.path.isfile(checkpoint_fpath):
+            print (f"Checkpoint file {checkpoint_fpath} not found")
+            exit(1)
         checkpoint_state_dict = torch.load(checkpoint_fpath)
         self.nn_model.load_state_dict(checkpoint_state_dict['model'])
         self.optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
@@ -348,6 +338,8 @@ class TrainingSetup:
 
         plot.plot(vl, 'b.')
         plot.plot(vl, 'b', label="val")
+        plot.xlabel("epoch")
+        plot.ylabel("loss")
         plot.grid()
         plot.legend()
 
