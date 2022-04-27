@@ -85,7 +85,6 @@ class TrainingSetup:
 
         # split into train / test by specifying portions e.g. 0.7 - 70% train, the rest 30% - validation:
         train_portion = 0.7
-        val_to_test_portion = 0.3
         num_train_samples = int(len(sentences) * train_portion)
 
         # val and test are divided equally:
@@ -116,7 +115,7 @@ class TrainingSetup:
         self.optimizer = top.Adam(self.nn_model.parameters(), lr=self.train_params.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
         self.scheduler = top.lr_scheduler.StepLR(self.optimizer,
-                                                 step_size=1,
+                                                 step_size=100,
                                                  gamma=1.0)
 
 
@@ -157,7 +156,7 @@ class TrainingSetup:
                 print(f" epoch {i_epoch} / {self.train_params.epochs - 1},"
                       f" batch {batch_index} / {len(train_batches) - 1},"
                       f" loss = {loss.item()} |"
-                      f" Grad norm = {grad_norm}")
+                      f" gradient norm = {grad_norm}")
 
                 # Accumulate loss obtained for every batch
                 with torch.no_grad():
@@ -266,6 +265,7 @@ class TrainingSetup:
 
 
     def predict(self, input_sequence, max_length=10):
+        """ Infer sequence from input_sequence """
         self.nn_model.eval()
         y_input = torch.tensor([[self.tokenizer.SOS]], dtype=torch.long, device=self.device)
 
