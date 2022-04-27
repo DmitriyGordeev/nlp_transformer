@@ -13,6 +13,6 @@ if __name__ == "__main__":
                                grad_norm_clip=0.0)
 
     TS = TrainingSetup(is_gpu=True, is_resume_mode=False, train_params=train_params)
-    TS.load_data("space.txt")
+    TS.load_data("data/space.txt")
     TS.run()
     TS.plot_losses()
