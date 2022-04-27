@@ -164,6 +164,7 @@ if __name__ == "__main__":
     train_dataloader = data_generator.batchify_data(train_data, batch_size=batch_size)   # (list) element is a ndarray (batch_size, 2, sequence_len)
     val_dataloader = data_generator.batchify_data(val_data, batch_size=batch_size)       # (list) element is a ndarray (batch_size, 2, sequence_len)
 
+
     # 2. Setup training
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # device = "cpu"

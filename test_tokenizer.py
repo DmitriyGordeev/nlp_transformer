@@ -45,3 +45,22 @@ class TestTextConverter(unittest.TestCase):
             cursor += shift
             pass
         pass
+
+
+    def test_batchify(self):
+        tokenizer = Tokenizer()
+        with open("space.txt", "r") as f:
+            text = f.read()
+            sentences, vocab = tokenizer.assemble_vocab(text)
+        vocab_size = len(list(vocab.keys()))
+
+        train_portion = 0.7
+        num_train_samples = int(len(sentences) * train_portion)
+
+        train_data = sentences[0:num_train_samples]
+        val_data  = sentences[num_train_samples:]
+
+        train_data_tensor = torch.tensor(train_data, dtype=torch.long)
+
+        pass
+

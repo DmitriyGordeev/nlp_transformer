@@ -18,12 +18,7 @@ class Transformer(nn.Module):
             dropout_p,
     ):
         super().__init__()
-
-        # INFO
-        self.model_type = "Transformer"
         self.dim_model = dim_model
-
-        # LAYERS
         self.positional_encoder = PositionalEncoding(
             dim_model=dim_model, dropout_p=dropout_p, max_len=5000
         )
@@ -36,7 +31,6 @@ class Transformer(nn.Module):
             dropout=dropout_p,
         )
         self.out = nn.Linear(dim_model, num_tokens)
-        self.log_softmax = nn.LogSoftmax(2)
 
 
     def forward(
@@ -67,10 +61,6 @@ class Transformer(nn.Module):
                                            src_key_padding_mask=src_pad_mask,
                                            tgt_key_padding_mask=tgt_pad_mask)
         out = self.out(transformer_out)
-        # out = torch.exp(self.log_softmax(out))
-
-        # out[:, :, :].argmax(dim=2) -> tuple with sequences of 33 numbers
-        #                               indicies of the words from our vocab
         return out
 
 
@@ -95,3 +85,11 @@ class Transformer(nn.Module):
         # If matrix = [1,2,3,0,0,0] where pad_token=0, the result mask is
         # [False, False, False, True, True, True]
         return (matrix == pad_token)
+
+
+    def count_params(self):
+        """ Counts number of parameters in the network exposed to gradient optimization """
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+
