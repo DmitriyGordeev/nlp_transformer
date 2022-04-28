@@ -30,7 +30,7 @@ class TrainingSetup:
         self.device = "cpu"
         if is_gpu:
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-            print(f"Device is {self.device}")
+        print(f"Device is {self.device}")
 
         self.is_resume_mode = is_resume_mode
 
@@ -97,6 +97,7 @@ class TrainingSetup:
         self.val_data  = torch.tensor(sentences[num_train_samples : num_train_samples + num_val_samples], dtype=torch.long)
         self.test_data = torch.tensor(sentences[num_train_samples + num_val_samples:], dtype=torch.long)
 
+        print (f"")
         print (f"Train samples {num_train_samples}")
         print (f"Validation samples {num_val_samples}")
         print (f"Test samples {num_test_samples}")
@@ -104,12 +105,13 @@ class TrainingSetup:
 
     def setup_nn(self):
         self.nn_model = model.Transformer(num_tokens=self.vocab_size,
-                                          dim_model=12,
-                                          num_heads=2,
+                                          dim_model=1,
+                                          num_heads=1,
                                           num_encoder_layers=1,
                                           num_decoder_layers=1,
                                           dropout_p=0.01).to(self.device)
         self.nn_model.to(self.device)
+        print (f"\nParameters in the model = {self.nn_model.count_params()}\n")
 
 
     def setup_optimizers(self):
