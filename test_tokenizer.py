@@ -11,12 +11,12 @@ from tokenizer import Tokenizer
 class TestTextConverter(unittest.TestCase):
 
     def test_text(self):
-        with open("space.txt", "r") as f:
+        with open("data/space.txt", "r") as f:
             text = f.read()
             tp = Tokenizer()
             tp.assemble_vocab(text)
 
-            print("australian", tp.encode_sentence("australian"))
+            print("pluto", tp.encode_sentence("pluto"))
             print(tp.decode_sentence([1, 3, 4, 2]))
 
 
@@ -29,7 +29,7 @@ class TestTextConverter(unittest.TestCase):
         output.backward()
 
 
-    def test_stepping(self):
+    def test_sampling(self):
         cursor = 0
         n_src = 3
         n_tgt = 3
@@ -49,7 +49,7 @@ class TestTextConverter(unittest.TestCase):
 
     def test_batchify(self):
         tokenizer = Tokenizer()
-        with open("space.txt", "r") as f:
+        with open("data/space.txt", "r") as f:
             text = f.read()
             sentences, vocab = tokenizer.assemble_vocab(text)
         vocab_size = len(list(vocab.keys()))
@@ -61,4 +61,4 @@ class TestTextConverter(unittest.TestCase):
         val_data  = sentences[num_train_samples:]
 
         train_data_tensor = torch.tensor(train_data, dtype=torch.long)
-
+        pass

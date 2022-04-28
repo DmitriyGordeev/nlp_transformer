@@ -31,15 +31,3 @@ class TestEmbedding(unittest.TestCase):
         word_vectors = emb_layer(torch.LongTensor(encoded_sentences))
 
         pass
-
-
-    def test_shifting(self):
-        sentences = [
-            [1, 2, 3],
-            [4, 5, 6],
-            [7, 8, 9],
-            [10, 11, 12]
-        ]
-
-        T = torch.FloatTensor(sentences)
-        pass
