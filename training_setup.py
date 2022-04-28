@@ -246,6 +246,7 @@ class TrainingSetup:
     def test(self):
         test_loss = 0
         batches = torch.split(self.test_data, 1, dim=0)
+        self.nn_model.eval()
 
         for idx, batch in enumerate(batches):
             src = batch[:, 0, :].to(self.device)
