@@ -247,13 +247,13 @@ class TrainingSetup:
             train_loss = float(train_loss) / len(dataloader_train)
             
             self.recorded_train_loss.append(train_loss)
-            
-            dashboard.add_scalar('train loss', train_loss, i_epoch)
 
             print(f'\n------- epoch {i_epoch} -------')
             print('Train loss ', train_loss)
 
             self.validate(dashboard, i_epoch)
+
+            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
 
             self.scheduler.step()
 
@@ -327,8 +327,6 @@ class TrainingSetup:
             val_loss = float(val_loss) / len(dataloader_val)
 
             self.recorded_val_loss.append(val_loss)
-
-            dashboard.add_scalar('val loss', val_loss, i_epoch)
 
             print('Validation loss ', val_loss)
             
