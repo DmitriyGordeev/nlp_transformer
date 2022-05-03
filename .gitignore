@@ -4,5 +4,5 @@ checkpoints/
 __pycache__/
 *.jpg
 venv
+models
 runs
-trash.py

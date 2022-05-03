@@ -251,7 +251,7 @@ class TrainingSetup:
             print(f'\n------- epoch {i_epoch} -------')
             print('Train loss ', train_loss)
 
-            self.validate(dashboard, i_epoch)
+            self.validate(i_epoch)
 
             dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
 
@@ -291,7 +291,7 @@ class TrainingSetup:
         return pred, loss
 
 
-    def validate(self, dashboard, i_epoch):
+    def validate(self, i_epoch):
 
         dataloader_val = DataLoader(
                                     dataset=self.val_dataset,
@@ -337,33 +337,42 @@ class TrainingSetup:
 
 
     def test(self):
+
+        with torch.no_grad():
         
+            dataloader_test = DataLoader(
+                                        dataset=self.test_dataset,
+                                        batch_size=self.train_params.batch_size,
+                                        shuffle=True,
+                                        )
+        
+            test_loss = 0
+            self.nn_model.eval()
 
-        test_loss = 0
-        batches = torch.split(self.test_data, 1, dim=0)
-        self.nn_model.eval()
+            for batch in dataloader_test:
+                src = batch.to(self.device)
+                tgt_input = batch[:, :-1].to(self.device)
+                tgt_expected = batch[:, 1:].to(self.device)
 
-        for idx, batch in enumerate(batches):
-            src = batch[:, 0, :].to(self.device)
-            tgt = batch[:, 1, :].to(self.device)
+                # Get mask to mask out the next words
+                sequence_length = tgt_input.size(1)
+                tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
 
-            # calculate loss
-            pred_matrix, loss = self.nn_forward(src, tgt)
+                # Standard training except we pass in y_input and tgt_mask
+                pred = self.nn_model(src, tgt_input, tgt_mask)
+        
+                # Permute pred to have batch size first again
+                pred = pred.permute(0, 2, 1)
+                tgt_expected = tgt_expected.type(torch.int64)
+        
+                loss = self.criterion(pred, tgt_expected)
 
-            # predict completely unseen sequence
-            predicted_sequence = self.predict(src, max_length=self.train_params.max_inference_len)
+                test_loss += loss.item()
 
-            # decode src, tgt and prediction into human-readable string
-            print (f"Test sample idx {idx}, max_inference_len = {self.train_params.max_inference_len} : ")
-            print (f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
-            print (f"tgt  = {self.tokenizer.decode_sentence(tgt[0, :].view(-1).tolist())}")
-            print (f"pred = {self.tokenizer.decode_sentence(predicted_sequence)}\n")
+            test_loss = float(test_loss) / len(dataloader_test)
 
-            print("Test batch ", idx, "/", len(batches) - 1, ", loss =", loss.item())
-            test_loss += loss.item()
-
-        print("................................................")
-        print(f"mean test loss = {float(test_loss) / len(batches)}")
+            self.recorded_test_loss.append(test_loss)
+            print(f'\n------- Test loss : {self.recorded_test_loss[-1]} -------')
 
 
     def predict(self, input_sequence, max_length=10):
@@ -455,7 +464,7 @@ class TrainingSetup:
         self.setup_nn()
         self.setup_optimizers()
         self.train()
-        # self.test()
+        self.test()
 
 
     def set_optimizer_lr(self, new_learning_rate):
