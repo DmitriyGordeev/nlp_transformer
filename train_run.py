@@ -19,7 +19,7 @@ if __name__ == "__main__":
                                )
 
     TS = TrainingSetup(
-                    is_gpu=False,
+                    is_gpu=True,
                     is_resume_mode=False,
                     train_params=train_params,
                     )

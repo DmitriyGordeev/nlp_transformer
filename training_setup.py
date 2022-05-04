@@ -189,6 +189,47 @@ class TrainingSetup:
                                                  gamma=1.0)
 
 
+
+    def nn_forward(self, batch, print_enabled=False):
+        """ Helper function to be invoked everywhere on training, validation and test stages
+        :param batch:
+        :param print_enabled: if true prints predicted sequence
+        :return: loss
+        """
+        src = batch.to(self.device)
+        tgt_input = batch[:, :-1].to(self.device)
+        tgt_expected = batch[:, 1:].to(self.device)
+
+        # Get mask to mask out the next words
+        sequence_length = tgt_input.size(1)
+        tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+
+        # Standard training except we pass in y_input and tgt_mask
+        pred = self.nn_model(src, tgt_input, tgt_mask)
+
+        # Permute pred to have batch size first again
+        pred = pred.permute(0, 2, 1)
+        tgt_expected = tgt_expected.type(torch.int64)
+
+        loss = self.criterion(pred, tgt_expected)
+
+        if print_enabled:
+            # Print predicted sequence
+            predicted_sequence = self.predict(src[0:1, :], max_length=self.train_params.inference_max_len)
+
+            # TODO: move from stdout to the logger
+
+            # decode src, tgt and prediction into human-readable string
+            print("=================================================================")
+            print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
+            print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}")
+            print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}")
+            print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}")
+            print("=================================================================")
+
+        return pred, loss
+
+
     def train(self):
 
         dashboard = SummaryWriter()
@@ -270,41 +311,6 @@ class TrainingSetup:
         dashboard.close()
 
 
-    def nn_forward(self, batch, print_enabled=False):
-        """ Helper function to be invoked everywhere on training, validation and test stages
-        :param batch:
-        :param print_enabled: if true prints predicted sequence
-        :return: loss
-        """
-        src = batch.to(self.device)
-        tgt_input = batch[:, :-1].to(self.device)
-        tgt_expected = batch[:, 1:].to(self.device)
-
-        # Get mask to mask out the next words
-        sequence_length = tgt_input.size(1)
-        tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-
-        # Standard training except we pass in y_input and tgt_mask
-        pred = self.nn_model(src, tgt_input, tgt_mask)
-
-        # Permute pred to have batch size first again
-        pred = pred.permute(0, 2, 1)
-        tgt_expected = tgt_expected.type(torch.int64)
-
-        loss = self.criterion(pred, tgt_expected)
-
-        if print_enabled:
-            # Print predicted sequence
-            predicted_sequence = self.predict(src[0:1, :], max_length=self.train_params.inference_max_len)
-
-            # decode src, tgt and prediction into human-readable string
-            print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
-            print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}\n")
-            print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}\n")
-            print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}\n\n")
-
-        return pred, loss
-
 
     def validate(self, i_epoch):
 
@@ -318,7 +324,7 @@ class TrainingSetup:
 
             val_loss = 0
 
-            for batch in dataloader_val:
+            for batch_index, batch in enumerate(dataloader_val):
 
                 # src = batch.to(self.device)
                 # tgt_input = batch[:, :-1].to(self.device)
@@ -337,7 +343,9 @@ class TrainingSetup:
                 #
                 # loss = self.criterion(pred, tgt_expected)
 
-                pred, loss = self.nn_forward(batch, True)
+
+                # Print predicted sequence for the first sample of the first validation batch
+                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
 
                 val_loss += loss.item()
 
@@ -387,7 +395,9 @@ class TrainingSetup:
                 #
                 # loss = self.criterion(pred, tgt_expected)
 
-                pred, loss = self.nn_forward(batch, print_enabled=True)
+
+                # Print the first 100 predicted sequences of the test set:
+                pred, loss = self.nn_forward(batch, print_enabled=(batch_idx < 100))
 
                 test_loss += loss.item()
 
@@ -408,8 +418,7 @@ class TrainingSetup:
 
             pred = self.nn_model(input_sequence, y_input, tgt_mask)
 
-            # next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
-            next_item = pred[-1, :, :].argmax().item()  # num of the highest proba on the last dimension
+            next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
             next_item = torch.tensor([[next_item]], device=self.device)
 
             # Concatenate previous input with predicted best word

@@ -69,7 +69,7 @@ class TokenizerLanguageModel:
 
         self.word2idx_size = len(self.word2idx)
 
-        return
+
 
     def encode_seq(
         self,
