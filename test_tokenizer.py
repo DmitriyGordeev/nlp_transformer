@@ -60,3 +60,8 @@ class TestTokenizer(unittest.TestCase):
             pass
         pass
 
+
+    def test_tokenizer_with_embedding(self):
+        # TODO! check error with vocab-size vs embedding indexes (CUDA ERROR!)
+        pass
+

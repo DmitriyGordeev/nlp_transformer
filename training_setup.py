@@ -215,22 +215,24 @@ class TrainingSetup:
 
             for batch in dataloader_train:
 
-                src = batch.to(self.device)
-                tgt_input = batch[:, :-1].to(self.device)
-                tgt_expected = batch[:, 1:].to(self.device)
+                # src = batch.to(self.device)
+                # tgt_input = batch[:, :-1].to(self.device)
+                # tgt_expected = batch[:, 1:].to(self.device)
+                #
+                # # Get mask to mask out the next words
+                # sequence_length = tgt_input.size(1)
+                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+                #
+                # # Standard training except we pass in y_input and tgt_mask
+                # pred = self.nn_model(src, tgt_input, tgt_mask)
+                #
+                # # Permute pred to have batch size first again
+                # pred = pred.permute(0, 2, 1)
+                # tgt_expected = tgt_expected.type(torch.int64)
+                #
+                # loss = self.criterion(pred, tgt_expected)
 
-                # Get mask to mask out the next words
-                sequence_length = tgt_input.size(1)
-                tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-
-                # Standard training except we pass in y_input and tgt_mask
-                pred = self.nn_model(src, tgt_input, tgt_mask)
-        
-                # Permute pred to have batch size first again
-                pred = pred.permute(0, 2, 1)
-                tgt_expected = tgt_expected.type(torch.int64)
-        
-                loss = self.criterion(pred, tgt_expected)
+                pred, loss = self.nn_forward(batch)
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -268,9 +270,10 @@ class TrainingSetup:
         dashboard.close()
 
 
-    def nn_forward(self, batch):
+    def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
         :param batch:
+        :param print_enabled: if true prints predicted sequence
         :return: loss
         """
         src = batch.to(self.device)
@@ -290,14 +293,15 @@ class TrainingSetup:
 
         loss = self.criterion(pred, tgt_expected)
 
-        # Print predicted sequence
-        predicted_sequence = self.predict(src, max_length=self.train_params.inference_max_len)
+        if print_enabled:
+            # Print predicted sequence
+            predicted_sequence = self.predict(src[0:1, :], max_length=self.train_params.inference_max_len)
 
-        # decode src, tgt and prediction into human-readable string
-        print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
-        print(f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
-        print(f"tgt  = {self.tokenizer.decode_sentence(tgt_expected[0, :].view(-1).tolist())}")
-        print(f"pred = {self.tokenizer.decode_sentence(predicted_sequence)}\n")
+            # decode src, tgt and prediction into human-readable string
+            print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
+            print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}\n")
+            print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}\n")
+            print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}\n\n")
 
         return pred, loss
 
@@ -316,22 +320,24 @@ class TrainingSetup:
 
             for batch in dataloader_val:
 
-                src = batch.to(self.device)
-                tgt_input = batch[:, :-1].to(self.device)
-                tgt_expected = batch[:, 1:].to(self.device)
+                # src = batch.to(self.device)
+                # tgt_input = batch[:, :-1].to(self.device)
+                # tgt_expected = batch[:, 1:].to(self.device)
+                #
+                # # Get mask to mask out the next words
+                # sequence_length = tgt_input.size(1)
+                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+                #
+                # # Standard training except we pass in y_input and tgt_mask
+                # pred = self.nn_model(src, tgt_input, tgt_mask)
+                #
+                # # Permute pred to have batch size first again
+                # pred = pred.permute(0, 2, 1)
+                # tgt_expected = tgt_expected.type(torch.int64)
+                #
+                # loss = self.criterion(pred, tgt_expected)
 
-                # Get mask to mask out the next words
-                sequence_length = tgt_input.size(1)
-                tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-
-                # Standard training except we pass in y_input and tgt_mask
-                pred = self.nn_model(src, tgt_input, tgt_mask)
-        
-                # Permute pred to have batch size first again
-                pred = pred.permute(0, 2, 1)
-                tgt_expected = tgt_expected.type(torch.int64)
-        
-                loss = self.criterion(pred, tgt_expected)
+                pred, loss = self.nn_forward(batch, True)
 
                 val_loss += loss.item()
 
@@ -360,7 +366,9 @@ class TrainingSetup:
             test_loss = 0
             self.nn_model.eval()
 
-            for batch in dataloader_test:
+            for batch_idx, batch in enumerate(dataloader_test):
+
+                print (f"Test sample index {batch_idx}:")
 
                 # src = batch.to(self.device)
                 # tgt_input = batch[:, :-1].to(self.device)
@@ -379,10 +387,7 @@ class TrainingSetup:
                 #
                 # loss = self.criterion(pred, tgt_expected)
 
-
-                pred, loss = self.nn_forward(batch)
-
-
+                pred, loss = self.nn_forward(batch, print_enabled=True)
 
                 test_loss += loss.item()
 
@@ -395,7 +400,7 @@ class TrainingSetup:
     def predict(self, input_sequence, max_length=10):
         """ Infer sequence from input_sequence """
         self.nn_model.eval()
-        y_input = torch.tensor([[self.tokenizer.SOS]], dtype=torch.long, device=self.device)
+        y_input = torch.tensor([[model_constants.start_token_num]], dtype=torch.long, device=self.device)
 
         for _ in range(max_length):
             # Get source mask
@@ -411,7 +416,7 @@ class TrainingSetup:
             y_input = torch.cat((y_input, next_item), dim=1)
 
             # Stop if model predicts end of sentence
-            if next_item.view(-1).item() == self.tokenizer.EOS:
+            if next_item.view(-1).item() == model_constants.end_token_num:
                 break
 
         return y_input.view(-1).tolist()
