@@ -256,23 +256,6 @@ class TrainingSetup:
 
             for batch in dataloader_train:
 
-                # src = batch.to(self.device)
-                # tgt_input = batch[:, :-1].to(self.device)
-                # tgt_expected = batch[:, 1:].to(self.device)
-                #
-                # # Get mask to mask out the next words
-                # sequence_length = tgt_input.size(1)
-                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-                #
-                # # Standard training except we pass in y_input and tgt_mask
-                # pred = self.nn_model(src, tgt_input, tgt_mask)
-                #
-                # # Permute pred to have batch size first again
-                # pred = pred.permute(0, 2, 1)
-                # tgt_expected = tgt_expected.type(torch.int64)
-                #
-                # loss = self.criterion(pred, tgt_expected)
-
                 pred, loss = self.nn_forward(batch)
 
                 self.optimizer.zero_grad()
@@ -326,25 +309,7 @@ class TrainingSetup:
 
             for batch_index, batch in enumerate(dataloader_val):
 
-                # src = batch.to(self.device)
-                # tgt_input = batch[:, :-1].to(self.device)
-                # tgt_expected = batch[:, 1:].to(self.device)
-                #
-                # # Get mask to mask out the next words
-                # sequence_length = tgt_input.size(1)
-                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-                #
-                # # Standard training except we pass in y_input and tgt_mask
-                # pred = self.nn_model(src, tgt_input, tgt_mask)
-                #
-                # # Permute pred to have batch size first again
-                # pred = pred.permute(0, 2, 1)
-                # tgt_expected = tgt_expected.type(torch.int64)
-                #
-                # loss = self.criterion(pred, tgt_expected)
-
-
-                # Print predicted sequence for the first sample of the first validation batch
+                # Print predicted sequence for the first sample of the first validation batch on each epoch
                 pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
 
                 val_loss += loss.item()
@@ -377,24 +342,6 @@ class TrainingSetup:
             for batch_idx, batch in enumerate(dataloader_test):
 
                 print (f"Test sample index {batch_idx}:")
-
-                # src = batch.to(self.device)
-                # tgt_input = batch[:, :-1].to(self.device)
-                # tgt_expected = batch[:, 1:].to(self.device)
-                #
-                # # Get mask to mask out the next words
-                # sequence_length = tgt_input.size(1)
-                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-                #
-                # # Standard training except we pass in y_input and tgt_mask
-                # pred = self.nn_model(src, tgt_input, tgt_mask)
-                #
-                # # Permute pred to have batch size first again
-                # pred = pred.permute(0, 2, 1)
-                # tgt_expected = tgt_expected.type(torch.int64)
-                #
-                # loss = self.criterion(pred, tgt_expected)
-
 
                 # Print the first 100 predicted sequences of the test set:
                 pred, loss = self.nn_forward(batch, print_enabled=(batch_idx < 100))
