@@ -1,6 +1,5 @@
-from torch.utils.data import Dataset
-
 import numpy as np
+from torch.utils.data import Dataset
 
 
 class DatasetLanguageModel(Dataset):
@@ -21,7 +20,6 @@ class DatasetLanguageModel(Dataset):
         self.pad_token_num = vocab[pad_token]
     
     def __len__(self):
-
         if self.data_length % self.sequence_length == 0:
             return self.data_length // self.sequence_length
 

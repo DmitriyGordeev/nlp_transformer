@@ -142,7 +142,7 @@ class TrainingSetup:
         f.close()
 
         self.train_dataset = DatasetLanguageModel(
-                                            data = self.train_data,
+                                            data=self.train_data,
                                             sequence_length=tlm_data['seq_length'],
                                             start_token=model_constants.start_token,
                                             end_token=model_constants.end_token,
@@ -150,7 +150,7 @@ class TrainingSetup:
                                             vocab=self.word2idx,
                                             )
         self.test_dataset = DatasetLanguageModel(
-                                            data = self.test_data,
+                                            data=self.test_data,
                                             sequence_length=tlm_data['seq_length'],
                                             start_token=model_constants.start_token,
                                             end_token=model_constants.end_token,
@@ -158,7 +158,7 @@ class TrainingSetup:
                                             vocab=self.word2idx,
                                             )
         self.val_dataset = DatasetLanguageModel(
-                                            data = self.val_data,
+                                            data=self.val_data,
                                             sequence_length=tlm_data['seq_length'],
                                             start_token=model_constants.start_token,
                                             end_token=model_constants.end_token,
@@ -268,26 +268,37 @@ class TrainingSetup:
         dashboard.close()
 
 
-    def nn_forward(self, src, tgt):
+    def nn_forward(self, batch):
         """ Helper function to be invoked everywhere on training, validation and test stages
-        :param src:
-        :param tgt:
+        :param batch:
         :return: loss
         """
-        # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
-        y_input = tgt[:, :-1]
-        y_expected = tgt[:, 1:]
+        src = batch.to(self.device)
+        tgt_input = batch[:, :-1].to(self.device)
+        tgt_expected = batch[:, 1:].to(self.device)
 
-        # Get mask to mask out the next words.
-        sequence_length = y_input.size(1)
+        # Get mask to mask out the next words
+        sequence_length = tgt_input.size(1)
         tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
 
         # Standard training except we pass in y_input and tgt_mask
-        pred = self.nn_model(src, y_input, tgt_mask)
+        pred = self.nn_model(src, tgt_input, tgt_mask)
 
         # Permute pred to have batch size first again
-        pred = pred.permute(1, 2, 0)
-        loss = self.criterion(pred, y_expected)
+        pred = pred.permute(0, 2, 1)
+        tgt_expected = tgt_expected.type(torch.int64)
+
+        loss = self.criterion(pred, tgt_expected)
+
+        # Print predicted sequence
+        predicted_sequence = self.predict(src, max_length=self.train_params.inference_max_len)
+
+        # decode src, tgt and prediction into human-readable string
+        print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
+        print(f"src  = {self.tokenizer.decode_sentence(src[0, :].view(-1).tolist())}")
+        print(f"tgt  = {self.tokenizer.decode_sentence(tgt_expected[0, :].view(-1).tolist())}")
+        print(f"pred = {self.tokenizer.decode_sentence(predicted_sequence)}\n")
+
         return pred, loss
 
 
@@ -342,7 +353,7 @@ class TrainingSetup:
         
             dataloader_test = DataLoader(
                                         dataset=self.test_dataset,
-                                        batch_size=self.train_params.batch_size,
+                                        batch_size=1,
                                         shuffle=True,
                                         )
         
@@ -350,22 +361,28 @@ class TrainingSetup:
             self.nn_model.eval()
 
             for batch in dataloader_test:
-                src = batch.to(self.device)
-                tgt_input = batch[:, :-1].to(self.device)
-                tgt_expected = batch[:, 1:].to(self.device)
 
-                # Get mask to mask out the next words
-                sequence_length = tgt_input.size(1)
-                tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+                # src = batch.to(self.device)
+                # tgt_input = batch[:, :-1].to(self.device)
+                # tgt_expected = batch[:, 1:].to(self.device)
+                #
+                # # Get mask to mask out the next words
+                # sequence_length = tgt_input.size(1)
+                # tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+                #
+                # # Standard training except we pass in y_input and tgt_mask
+                # pred = self.nn_model(src, tgt_input, tgt_mask)
+                #
+                # # Permute pred to have batch size first again
+                # pred = pred.permute(0, 2, 1)
+                # tgt_expected = tgt_expected.type(torch.int64)
+                #
+                # loss = self.criterion(pred, tgt_expected)
 
-                # Standard training except we pass in y_input and tgt_mask
-                pred = self.nn_model(src, tgt_input, tgt_mask)
-        
-                # Permute pred to have batch size first again
-                pred = pred.permute(0, 2, 1)
-                tgt_expected = tgt_expected.type(torch.int64)
-        
-                loss = self.criterion(pred, tgt_expected)
+
+                pred, loss = self.nn_forward(batch)
+
+
 
                 test_loss += loss.item()
 

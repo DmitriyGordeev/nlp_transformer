@@ -5,7 +5,7 @@ import re
 import torchtext
 
 
-class TokenizerLanguageModel():
+class TokenizerLanguageModel:
     def __init__(
         self,
         pad_token: str,
@@ -37,14 +37,14 @@ class TokenizerLanguageModel():
         tokenizer,
     ):
         return tokenizer(data)
-    
+
     @staticmethod
     def buildup(
         data: list,
     ):
         if len(data) == 0:
             raise ValueError('sequence is empty')
-        
+
         out = ''
         for el in data:
             out += el + ' '
@@ -70,46 +70,46 @@ class TokenizerLanguageModel():
         self.word2idx_size = len(self.word2idx)
 
         return
-    
+
     def encode_seq(
         self,
         data: list,
     ):
         if self.word2idx is None:
             raise RuntimeError('vocab is empty')
-        
+
         out = []
         for el in data:
             if el in self.word2idx.keys():
                 out.append(self.word2idx[el])
             else:
                 out.append(self.unk_token_num)
-        
+
         return out
-    
+
     def decode_seq(
         self,
         data: list,
     ):
         if self.idx2word is None:
             raise RuntimeError('vocab is empty')
-        
+
         out = []
         for el in data:
-            out.append(self.idx2word[el])            
-        
+            out.append(self.idx2word[el])
+
         return out
 
 
-class TokenizerCollection():
+class TokenizerCollection:
     def __init__(self):
         return
-    
+
     @staticmethod
     def basic_english_by_word(
         data: str,
     ):
         out = torchtext.data.utils.get_tokenizer('basic_english')(data)
-        out = [el  for el in out if el.isalpha()]
+        out = [el for el in out if el.isalpha()]
         return out
 

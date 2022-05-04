@@ -1,10 +1,10 @@
+import math
+
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import math
-import numpy as np
 
 from pos_encoding import PositionalEncoding
+
 
 class TransformerLanguageModel(nn.Module):
     def __init__(
@@ -24,7 +24,7 @@ class TransformerLanguageModel(nn.Module):
 
         self.positional_encoder = PositionalEncoding(
                                                 d_model=d_model,
-                                                dropout=0.1,
+                                                dropout=dropout_p,
                                                 max_len=5000
                                                 )
         

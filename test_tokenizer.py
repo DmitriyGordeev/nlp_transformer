@@ -1,32 +1,46 @@
 import unittest
-from collections import Counter
-import re
 import numpy
-import torch
-import torch.nn as nn
-
-from tokenizer import Tokenizer
+import model_constants
+from tokenizer import TokenizerLanguageModel, TokenizerCollection
 
 
-class TestTextConverter(unittest.TestCase):
+class TestTokenizer(unittest.TestCase):
+
+    @staticmethod
+    def create_tokenizer():
+        tokenizer = TokenizerLanguageModel(
+            pad_token=model_constants.pad_token,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            unk_token=model_constants.unk_token,
+            pad_token_num=model_constants.pad_token_num,
+            start_token_num=model_constants.start_token_num,
+            end_token_num=model_constants.end_token_num,
+            unk_token_num=model_constants.unk_token_num
+        )
+        return tokenizer
+
+
+    def test_short_text(self):
+        text = "A brown dog jumped on the fox"
+
+        tokenizer = self.create_tokenizer()
+        text = tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
+        tokenizer.assemble_vocab(text)
+
+        encoded_seq = tokenizer.encode_seq(text)
+        decoded_seq = tokenizer.decode_seq(encoded_seq)
+        pass
+
 
     def test_text(self):
-        with open("data/space.txt", "r") as f:
+        tokenizer = self.create_tokenizer()
+
+        with open("data/space.txt", "r", encoding="utf-8") as f:
             text = f.read()
-            tp = Tokenizer()
-            tp.assemble_vocab(text)
-
-            print("pluto", tp.encode_sentence("pluto"))
-            print(tp.decode_sentence([1, 3, 4, 2]))
-
-
-    def test_cross_entropy(self):
-        # Example of target with class indices
-        loss = nn.CrossEntropyLoss()
-        inp = torch.randn(1, 5, requires_grad=True)
-        target = torch.empty(1, dtype=torch.long).random_(5)
-        output = loss(inp, target)
-        output.backward()
+            text = tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
+            tokenizer.assemble_vocab(text)
+            print(tokenizer.encode_seq(["pluto"]))
 
 
     def test_sampling(self):
@@ -46,19 +60,3 @@ class TestTextConverter(unittest.TestCase):
             pass
         pass
 
-
-    def test_batchify(self):
-        tokenizer = Tokenizer()
-        with open("data/space.txt", "r") as f:
-            text = f.read()
-            sentences, vocab = tokenizer.assemble_vocab(text)
-        vocab_size = len(list(vocab.keys()))
-
-        train_portion = 0.7
-        num_train_samples = int(len(sentences) * train_portion)
-
-        train_data = sentences[0:num_train_samples]
-        val_data  = sentences[num_train_samples:]
-
-        train_data_tensor = torch.tensor(train_data, dtype=torch.long)
-        pass
