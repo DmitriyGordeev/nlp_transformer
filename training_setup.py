@@ -129,6 +129,8 @@ class TrainingSetup:
         self.train_data = self.tokenizer.encode_seq(text)
         f.close()
 
+        torch.save(self.word2idx, 'models/' + tlm_info['name'] + '/vocab.pt')
+
         f = open(test_path, "r", encoding="utf-8")
         text = f.read()
         text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
@@ -310,7 +312,7 @@ class TrainingSetup:
             for batch_index, batch in enumerate(dataloader_val):
 
                 # Print predicted sequence for the first sample of the first validation batch on each epoch
-                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
+                pred, loss = self.nn_forward(batch, print_enabled=False)
 
                 val_loss += loss.item()
 
@@ -324,6 +326,7 @@ class TrainingSetup:
             if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
                 self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + f'/best_val_model_so_far/best_checkpoint.pt')
                 self.best_val_loss_so_far = val_loss
+                torch.save(self.nn_model, 'models/' + tlm_info['name'] + '/model.pth')
 
 
     def test(self):
@@ -341,10 +344,10 @@ class TrainingSetup:
 
             for batch_idx, batch in enumerate(dataloader_test):
 
-                print (f"Test sample index {batch_idx}:")
+                # print (f"Test sample index {batch_idx}:")
 
                 # Print the first 100 predicted sequences of the test set:
-                pred, loss = self.nn_forward(batch, print_enabled=(batch_idx < 100))
+                pred, loss = self.nn_forward(batch, print_enabled=False)
 
                 test_loss += loss.item()
 
