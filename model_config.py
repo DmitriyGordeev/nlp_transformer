@@ -1,17 +1,17 @@
 TransformerLanguageModelConfig = {
-    'd_model': 64,
-    'nhead': 16,
-    'num_encoder_layers': 3,
-    'num_decoder_layers': 3,
+    'd_model': 256,
+    'nhead': 4,
+    'num_encoder_layers': 1,
+    'num_decoder_layers': 1,
     'dim_feedforward': 1024,
-    'dropout_p': 0.1,
+    'dropout_p': 0.01,
 }
 
 TransformerLanguageModelDataConfig = {
-    'train_path': 'data/TheWarOfTheWorlds.txt',
-    'test_path': 'data/InTheDaysOfTheComet.txt',
-    'val_path': 'data/TheTimeMachine.txt',
-    'seq_length': 128,
+    'train_path': 'data/JV13.txt',
+    'test_path': 'data/JV13_part1.txt',
+    'val_path': 'data/JV13_part2.txt',
+    'seq_length': 10,
 }
 
 TransformerLanguageModelInfo = {
@@ -19,9 +19,10 @@ TransformerLanguageModelInfo = {
 }
 
 TransformerLanguageModelTrainConfig = {
-    'epochs': 5,
-    'learning_rate': 0.0001,
+    'epochs': 5000,
+    'learning_rate': 0.0000075,
     'inference_max_len': 10,
     'grad_norm_clip': 0.0,
-    'batch_size': 64,
+    'batch_size': 128,
+    'weight_decay': 0.0
 }

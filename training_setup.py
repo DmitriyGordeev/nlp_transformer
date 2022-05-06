@@ -10,6 +10,7 @@ import numpy
 import random
 import math
 import model
+import model_config
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
 from model_config import TransformerLanguageModelConfig as tlm_conf
 from model_config import TransformerLanguageModelDataConfig as tlm_data
@@ -30,13 +31,15 @@ class TrainParams:
             inference_max_len: int,
             grad_norm_clip: float,
             batch_size: int,
+            weight_decay: float
     ):
-        
+
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.inference_max_len = inference_max_len
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
+        self.weight_decay = weight_decay
 
 
 class TrainingSetup:
@@ -46,7 +49,7 @@ class TrainingSetup:
             is_resume_mode: bool,
             train_params: TrainParams,
     ):
-        
+
         self.device = "cpu"
         if is_gpu:
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -102,10 +105,10 @@ class TrainingSetup:
 
 
     def load_data(
-        self,
-        train_path: str,
-        test_path: str,
-        val_path: str,
+            self,
+            train_path: str,
+            test_path: str,
+            val_path: str,
     ):
         """ Reads file, tokenize and prepare tensors to train """
         self.tokenizer = TokenizerLanguageModel(
@@ -118,7 +121,7 @@ class TrainingSetup:
                                             end_token_num=model_constants.end_token_num,
                                             unk_token_num=model_constants.unk_token_num,
                                             )
-        
+
         f = open(train_path, "r", encoding="utf-8")
         text = f.read()
         text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
@@ -165,7 +168,7 @@ class TrainingSetup:
                                             pad_token=model_constants.pad_token,
                                             vocab=self.word2idx,
                                             )
-        
+
 
     def setup_nn(self):
         self.nn_model = model.TransformerLanguageModel(
@@ -182,13 +185,21 @@ class TrainingSetup:
 
 
     def setup_optimizers(self):
-        self.optimizer = top.RMSprop(self.nn_model.parameters(), lr=self.train_params.learning_rate)
+        # self.optimizer = top.RMSprop(self.nn_model.parameters(), lr=self.train_params.learning_rate)
+        self.optimizer = top.Adam(self.nn_model.parameters(),
+                                  lr=self.train_params.learning_rate,
+                                  weight_decay=self.train_params.weight_decay)
+
         self.criterion = nn.CrossEntropyLoss()
-        self.scheduler = top.lr_scheduler.StepLR(self.optimizer,
-                                                 step_size=100,
-                                                 gamma=1.0)
 
+        # self.scheduler = top.lr_scheduler.StepLR(self.optimizer,
+        #                                          step_size=50,
+        #                                          gamma=0.95)
 
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
+                                                                    patience=5,
+                                                                    threshold=0.0001,
+                                                                    factor=0.9)
 
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
@@ -249,7 +260,7 @@ class TrainingSetup:
                                     batch_size=self.train_params.batch_size,
                                     shuffle=True,
                                     )
-                
+
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
             train_loss = 0      # reset before each new epoch
@@ -264,24 +275,25 @@ class TrainingSetup:
                 # reduce the gradient step if necessary (and too big)
                 if self.train_params.grad_norm_clip != 0:
                     self.clip_grad_norm()
-                
+
                 self.optimizer.step()
 
                 with torch.no_grad():
                     train_loss += loss.item()
-            
+
             train_loss = float(train_loss) / len(dataloader_train)
-            
+
             self.recorded_train_loss.append(train_loss)
 
             print(f'\n------- epoch {i_epoch} -------')
             print('Train loss ', train_loss)
 
-            self.validate(i_epoch)
+            val_loss = self.validate(i_epoch)
 
-            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
+            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]},
+                                  i_epoch)
 
-            self.scheduler.step()
+            self.scheduler.step(val_loss)
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
@@ -290,7 +302,7 @@ class TrainingSetup:
                 self.remove_checkpoint_log_files('models/' + tlm_info['name'] + '/checkpoints/*.log')
                 f_write_epoch = open('models/' + tlm_info['name'] + '/checkpoints/' + str(i_epoch) + '.log', 'w')
                 f_write_epoch.close()
-        
+
         dashboard.close()
 
 
@@ -302,7 +314,7 @@ class TrainingSetup:
                                     batch_size=self.train_params.batch_size,
                                     shuffle=True,
                                     )
-        
+
         with torch.no_grad():
 
             val_loss = 0
@@ -319,23 +331,24 @@ class TrainingSetup:
             self.recorded_val_loss.append(val_loss)
 
             print('Validation loss ', val_loss)
-            
+
             # save the best so far validation loss checkpoint:
             if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + f'/best_val_model_so_far/best_checkpoint.pt')
+                self.save_checkpoint(i_epoch,
+                                     'models/' + tlm_info['name'] + f'/best_val_model_so_far/best_checkpoint.pt')
                 self.best_val_loss_so_far = val_loss
-
+        return val_loss
 
     def test(self):
 
         with torch.no_grad():
-        
+
             dataloader_test = DataLoader(
                                         dataset=self.test_dataset,
                                         batch_size=1,
                                         shuffle=True,
                                         )
-        
+
             test_loss = 0
             self.nn_model.eval()
 

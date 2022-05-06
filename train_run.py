@@ -16,7 +16,7 @@ if __name__ == "__main__":
                                inference_max_len=tlm_train['inference_max_len'],
                                grad_norm_clip=tlm_train['grad_norm_clip'],
                                batch_size=tlm_train['batch_size'],
-                               )
+                               weight_decay=tlm_train['weight_decay'])
 
     TS = TrainingSetup(
                     is_gpu=True,
