@@ -251,7 +251,7 @@ class TrainingSetup:
 
         # If we specified resume mode - load checkpoint
         if self.is_resume_mode:
-            start_epoch = self.load_checkpoint('models/' + tlm_info['name'] + '/checkpoints/checkpoint.pt')
+            start_epoch = self.load_checkpoint('models/' + tlm_info['name'] + '/checkpoints/')
             self.train_params.epochs += start_epoch
             print("resume from epoch:", start_epoch, " till epoch:", self.train_params.epochs)
         else:
@@ -299,67 +299,46 @@ class TrainingSetup:
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
             if i_epoch % 20 == 0:
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/checkpoint.pt')
-                self.remove_checkpoint_log_files('models/' + tlm_info['name'] + '/checkpoints/*.log')
-                f_write_epoch = open('models/' + tlm_info['name'] + '/checkpoints/' + str(i_epoch) + '.log', 'w')
-                f_write_epoch.close()
-        
+                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
+
         dashboard.close()
 
 
-
     def validate(self, i_epoch):
-
         dataloader_val = DataLoader(
                                     dataset=self.val_dataset,
                                     batch_size=self.train_params.batch_size,
                                     shuffle=True,
                                     )
-        
         with torch.no_grad():
-
             val_loss = 0
-
             for batch_index, batch in enumerate(dataloader_val):
-
-                # Print predicted sequence for the first sample of the first validation batch on each epoch
                 pred, loss = self.nn_forward(batch, print_enabled=False)
-
                 val_loss += loss.item()
 
             val_loss = float(val_loss) / len(dataloader_val)
-
             self.recorded_val_loss.append(val_loss)
-
             print('Validation loss ', val_loss)
             
             # save the best so far validation loss checkpoint:
             if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + f'/best_val_model_so_far/best_checkpoint.pt')
+                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
                 self.best_val_loss_so_far = val_loss
-                torch.save(self.nn_model, 'models/' + tlm_info['name'] + '/model.pth')
         return val_loss
 
-    def test(self):
 
+    def test(self):
         with torch.no_grad():
-        
             dataloader_test = DataLoader(
                                         dataset=self.test_dataset,
                                         batch_size=1,
                                         shuffle=True,
                                         )
-        
             test_loss = 0
             self.nn_model.eval()
 
             for batch_idx, batch in enumerate(dataloader_test):
-
-                # print (f"Test sample index {batch_idx}:")
-
-                # Print the first 100 predicted sequences of the test set:
                 pred, loss = self.nn_forward(batch, print_enabled=False)
-
                 test_loss += loss.item()
 
             test_loss = float(test_loss) / len(dataloader_test)
@@ -392,19 +371,22 @@ class TrainingSetup:
         return y_input.view(-1).tolist()
 
 
-    def save_checkpoint(self, current_epoch, checkpoint_filepath):
+    def save_checkpoint(self, current_epoch: int, directory: str):
+        """ Saves model, optimizer and scheduler state in specified dir """
+        self.remove_prev_checkpoints(directory)
         checkpoint_state_dict = {
             'epoch': current_epoch,
-            'model': self.nn_model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict(),
         }
-        checkpoint_filepath = checkpoint_filepath
-        torch.save(checkpoint_state_dict, checkpoint_filepath)
+        torch.save(checkpoint_state_dict, directory + f"/checkpoint.{current_epoch}.pt")     # saving epoch, optimizer, scheduler (as dicts)
+        torch.save(self.nn_model, directory + f"/model.{current_epoch}.pth")    # saving model file separately (don't need to parse dict on load)
+
 
     @staticmethod
-    def remove_checkpoint_log_files(pattern):
-        files = glob.glob(pattern)
+    def remove_prev_checkpoints(directory: str):
+        """ Removes model and checkpoint files in specified dir """
+        files = glob.glob(directory + "/*")
         for filePath in files:
             try:
                 os.remove(filePath)
@@ -412,12 +394,23 @@ class TrainingSetup:
                 print("Error while deleting file : ", filePath)
 
 
-    def load_checkpoint(self, checkpoint_fpath):
-        if not os.path.isfile(checkpoint_fpath):
-            print (f"Checkpoint file {checkpoint_fpath} not found")
+    def load_checkpoint(self, directory: str):
+        """ Searches for checkpoint*.pt and model*.pth files and loads them """
+        checkpoint_files = glob.glob(directory + "/checkpoint*")
+        if len(checkpoint_files) == 0:
+            print("Couldn't find checkpoint* files in: " + directory)
             exit(1)
-        checkpoint_state_dict = torch.load(checkpoint_fpath)
-        self.nn_model.load_state_dict(checkpoint_state_dict['model'])
+
+        model_files = glob.glob(directory + "/model*")
+        if len(model_files) == 0:
+            print("Couldn't find model* files in: " + directory)
+            exit(1)
+
+        print (f"Checkpoint file: {checkpoint_files[0]}")
+        print(f"Model file: {model_files[0]}")
+
+        self.nn_model = torch.load(model_files[0])
+        checkpoint_state_dict = torch.load(checkpoint_files[0])
         self.optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
         self.scheduler.load_state_dict(checkpoint_state_dict['scheduler'])
         return checkpoint_state_dict['epoch']

@@ -1,5 +1,5 @@
 TransformerLanguageModelConfig = {
-    'd_model': 256,
+    'd_model': 8,
     'nhead': 4,
     'num_encoder_layers': 1,
     'num_decoder_layers': 1,
@@ -19,10 +19,10 @@ TransformerLanguageModelInfo = {
 }
 
 TransformerLanguageModelTrainConfig = {
-    'epochs': 10,
+    'epochs': 22,
     'learning_rate': 0.0000075,
     'inference_max_len': 10,
     'grad_norm_clip': 0.0,
     'batch_size': 128,
-    'weight_decay': 0.0
+    'weight_decay': 0.0         # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }

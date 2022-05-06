@@ -10,6 +10,7 @@ def predict(
     is_gpu=True,
 ):
     """ Infer sequence from input_sequence """
+    device = "cpu"
     if is_gpu:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -55,15 +56,16 @@ def predict(
     return ans
 
 
-begin = 'I found some interesting'
+if __name__ == "__main__":
 
-nn_model = torch.load('models/model1/model.pth')
-vocab = torch.load('models/model1/vocab.pt')
+    begin = 'I found some interesting'
+    nn_model = torch.load('models/model1/best_val_model_so_far/model.32.pth')
+    vocab = torch.load('models/model1/vocab.pt')
 
-continuation = predict(
-                    model=nn_model,
-                    word2idx=vocab,
-                    text=begin,
-                    )
-print('begining:', begin)
-print('continuation:', continuation)
+    continuation = predict(
+                        model=nn_model,
+                        word2idx=vocab,
+                        text=begin,
+                        )
+    print('begining:', begin)
+    print('continuation:', continuation)
