@@ -31,6 +31,8 @@ class TokenizerLanguageModel:
         self.word2idx_size = None
         self.idx2word = None
 
+        return
+
     @staticmethod
     def cleanup(
         data: str,
@@ -69,7 +71,7 @@ class TokenizerLanguageModel:
 
         self.word2idx_size = len(self.word2idx)
 
-
+        return
 
     def encode_seq(
         self,
@@ -99,7 +101,18 @@ class TokenizerLanguageModel:
             out.append(self.idx2word[el])
 
         return out
+    
+    def set_vocab(
+        self,
+        word2idx: dict,
+    ):
+        self.word2idx = word2idx.copy()
+        
+        self.idx2word = {self.word2idx[key]: key for key in self.word2idx.keys()}
 
+        self.word2idx_size = len(self.word2idx)
+
+        return
 
 class TokenizerCollection:
     def __init__(self):
