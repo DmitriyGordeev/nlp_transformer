@@ -4,12 +4,15 @@ from model_config import TransformerLanguageModelInfo as tlm_info
 from model_config import TransformerLanguageModelConfig as tlm_config
 from model_config import TransformerLanguageModelDataConfig as tlm_data
 from model_config import TransformerLanguageModelTrainConfig as tlm_train
+from model_config import save_model_config
 
 if __name__ == "__main__":
     Path('models').mkdir(parents=True, exist_ok=True)
     Path('models/' + tlm_info['name']).mkdir(parents=True, exist_ok=True)    
     Path('models/' + tlm_info['name'] + '/checkpoints').mkdir(parents=True, exist_ok=True)
     Path('models/' + tlm_info['name'] + '/best_val_model_so_far').mkdir(parents=True, exist_ok=True)
+
+    save_model_config('models/' + tlm_info['name'])
 
     train_params = TrainParams(epochs=tlm_train['epochs'],
                                learning_rate=tlm_train['learning_rate'],

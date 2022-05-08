@@ -58,8 +58,8 @@ def predict(
 
 if __name__ == "__main__":
 
-    begin = 'I found some interesting'
-    nn_model = torch.load('models/model1/best_val_model_so_far/model.32.pth')
+    begin = 'Lord Glenarvan had a'
+    nn_model = torch.load('models/model1/best_val_model_so_far/model.351.pth')
     vocab = torch.load('models/model1/vocab.pt')
 
     continuation = predict(

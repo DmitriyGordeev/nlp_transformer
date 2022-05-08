@@ -132,6 +132,8 @@ class TrainingSetup:
         self.train_data = self.tokenizer.encode_seq(text)
         f.close()
 
+        print (f"Vocab size {self.word2idx_size}")
+
         torch.save(self.word2idx, 'models/' + tlm_info['name'] + '/vocab.pt')
 
         f = open(test_path, "r", encoding="utf-8")
@@ -200,8 +202,8 @@ class TrainingSetup:
 
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                     patience=5,
-                                                                    threshold=0.0001,
-                                                                    factor=0.9)
+                                                                    threshold=0.001,
+                                                                    factor=0.5)
 
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
@@ -295,6 +297,8 @@ class TrainingSetup:
             dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
 
             self.scheduler.step(val_loss)
+
+            print(f"learning_rate = {self.optimizer.param_groups[0]['lr']}")
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
