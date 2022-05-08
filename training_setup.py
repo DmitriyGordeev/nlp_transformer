@@ -380,10 +380,11 @@ class TrainingSetup:
         self.remove_prev_checkpoints(directory)
         checkpoint_state_dict = {
             'epoch': current_epoch,
+            'model': self.nn_model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict(),
         }
-        torch.save(checkpoint_state_dict, directory + f"/checkpoint.{current_epoch}.pt")     # saving epoch, optimizer, scheduler (as dicts)
+        torch.save(checkpoint_state_dict, directory + f"/checkpoint.{current_epoch}.pt")     # saving epoch, model, optimizer, scheduler (as dicts)
         torch.save(self.nn_model, directory + f"/model.{current_epoch}.pth")    # saving model file separately (don't need to parse dict on load)
 
 
@@ -413,8 +414,9 @@ class TrainingSetup:
         print (f"Checkpoint file: {checkpoint_files[0]}")
         print(f"Model file: {model_files[0]}")
 
-        self.nn_model = torch.load(model_files[0])
+        # self.nn_model = torch.load(model_files[0])
         checkpoint_state_dict = torch.load(checkpoint_files[0])
+        self.nn_model.load_state_dict(checkpoint_state_dict['model'])
         self.optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
         self.scheduler.load_state_dict(checkpoint_state_dict['scheduler'])
         return checkpoint_state_dict['epoch']

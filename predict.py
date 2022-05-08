@@ -67,5 +67,5 @@ if __name__ == "__main__":
                         word2idx=vocab,
                         text=begin,
                         )
-    print('begining:', begin)
+    print('beginning:', begin)
     print('continuation:', continuation)
