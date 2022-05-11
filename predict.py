@@ -2,6 +2,8 @@ import torch
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
 import model_constants
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def predict(
     model,
     word2idx: dict,
@@ -36,8 +38,13 @@ def predict(
         tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
 
         pred = model(input_seq, y_input, tgt_mask)
-
-        next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+        top_num = 0
+        esc_flag = True
+        while esc_flag:
+            next_item = pred.topk(4)[1].view(-1)[top_num].item()
+            if next_item not in [model_constants.start_token_num, model_constants.pad_token_num, model_constants.unk_token_num]:
+                esc_flag = False
+            top_num += 1
         next_item = torch.tensor([[next_item]], device=device)
 
         # Concatenate previous input with predicted best word
@@ -57,13 +64,14 @@ def predict(
 
 begin = 'I found some interesting'
 
-nn_model = torch.load('models/model1/model.pth')
-vocab = torch.load('models/model1/vocab.pt')
+nn_model = torch.load('models/model1/model.pth', map_location=torch.device(device))
+vocab = torch.load('models/model1/vocab.pt', map_location=torch.device(device))
 
 continuation = predict(
                     model=nn_model,
                     word2idx=vocab,
                     text=begin,
+                    max_length=1,
                     )
 print('begining:', begin)
 print('continuation:', continuation)

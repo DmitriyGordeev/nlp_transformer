@@ -19,7 +19,7 @@ TransformerLanguageModelInfo = {
 }
 
 TransformerLanguageModelTrainConfig = {
-    'epochs': 10,
+    'epochs': 5,
     'learning_rate': 0.0001,
     'inference_max_len': 10,
     'grad_norm_clip': 0.0,
