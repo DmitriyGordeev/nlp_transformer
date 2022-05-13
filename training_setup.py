@@ -85,7 +85,11 @@ class TrainingSetup:
         self.recorded_train_loss = []
         self.recorded_val_loss = []
         self.recorded_test_loss = []
-        self.best_val_loss_so_far = -1
+
+        self.prev_val_loss = 0
+        self.best_val_increase_counter = 0      # Counts up every time val loss is greater than the previous
+        self.best_val_counter_limit = 5         # if counter greater than this limit we save the checkpoint on validation
+        self.val_on_save = -1                   # Validation loss at the moment we saved the checkpoint
 
 
     def clip_grad_norm(self):
@@ -207,6 +211,7 @@ class TrainingSetup:
                                                                     threshold=0.001,
                                                                     factor=0.5)
 
+
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
         :param batch:
@@ -270,7 +275,7 @@ class TrainingSetup:
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
             train_loss = 0      # reset before each new epoch
-            print(f'\n------- epoch {i_epoch} -------')
+            print(f'\n------- epoch {i_epoch} / {self.train_params.epochs} -------')
 
             for batch_idx, batch in enumerate(dataloader_train):
 
@@ -307,7 +312,7 @@ class TrainingSetup:
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
-            if i_epoch % 1 == 0:
+            if i_epoch % 20 == 0:
                 start_time = time.time()
                 self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
                 print (f"Saving time = {time.time() - start_time} sec")
@@ -332,13 +337,36 @@ class TrainingSetup:
 
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
-            print('\nValidation loss ', val_loss)
+            print(f'\nValidation loss', val_loss)
             
-            # save the best so far validation loss checkpoint:
-            if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
-                time.time()
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
-                self.best_val_loss_so_far = val_loss
+            # # save the best so far validation loss checkpoint:
+            # if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
+            #     time.time()
+            #     self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
+            #     self.best_val_loss_so_far = val_loss
+
+
+            if self.val_on_save > 0 and val_loss < self.val_on_save:
+                print (f"[debug] Reaching another loss decreasing region, reset self.val_on_save")
+                self.val_on_save = -1
+
+            # saves checkpoint when we're observing val loss on plateau or rising for several times
+            if self.val_on_save < 0:
+                if self.prev_val_loss != 0 and abs(val_loss - self.prev_val_loss) / self.prev_val_loss <= 0.005:
+                    self.best_val_increase_counter += 1
+                    print (f"[debug] self.best_val_increase_counter = {self.best_val_increase_counter}")
+                    if self.best_val_increase_counter == self.best_val_counter_limit:
+                        t = time.time()
+                        self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
+                        self.val_on_save = val_loss
+                        self.best_val_increase_counter = 0
+                        print (f"Checkpoint saved in {time.time() - t} sec")
+                else:
+                    # reset accumulated counter
+                    self.best_val_increase_counter = 0
+
+            self.prev_val_loss = val_loss
+
         return val_loss
 
 
@@ -473,4 +501,5 @@ class TrainingSetup:
         """ Alters optimizer's learning rate on the go if necessary """
         for g in self.optimizer.param_groups:
             g['lr'] = new_learning_rate
+
 

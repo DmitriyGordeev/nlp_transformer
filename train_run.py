@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     TS = TrainingSetup(
                     is_gpu=True,
-                    is_resume_mode=True,
+                    is_resume_mode=False,
                     train_params=train_params,
                     )
     TS.load_data(
