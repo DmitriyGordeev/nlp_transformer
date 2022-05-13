@@ -2,18 +2,15 @@ import torch
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
 import model_constants
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def predict(
     model,
     word2idx: dict,
     text: str,
-    max_length=10,
-    is_gpu=True,
+    max_length=10
 ):
     """ Infer sequence from input_sequence """
-    device = "cpu"
-    if is_gpu:
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     tokenizer = TokenizerLanguageModel(
                                     pad_token=model_constants.pad_token,
                                     start_token=model_constants.start_token,
@@ -56,16 +53,16 @@ def predict(
     return ans
 
 
-if __name__ == "__main__":
+begin = 'I found some interesting'
 
-    begin = 'Lord Glenarvan had a'
-    nn_model = torch.load('models/model1/best_val_model_so_far/model.351.pth')
-    vocab = torch.load('models/model1/vocab.pt')
+nn_model = torch.load('models/model1/model.pth', map_location=torch.device(device))
+vocab = torch.load('models/model1/vocab.pt', map_location=torch.device(device))
 
-    continuation = predict(
-                        model=nn_model,
-                        word2idx=vocab,
-                        text=begin,
-                        )
-    print('beginning:', begin)
-    print('continuation:', continuation)
+continuation = predict(
+                    model=nn_model,
+                    word2idx=vocab,
+                    text=begin,
+                    max_length=1,
+                    )
+print('begining:', begin)
+print('continuation:', continuation)

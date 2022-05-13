@@ -270,6 +270,7 @@ class TrainingSetup:
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
             train_loss = 0      # reset before each new epoch
+            print(f'\n------- epoch {i_epoch} -------')
 
             for batch_idx, batch in enumerate(dataloader_train):
 
@@ -294,8 +295,7 @@ class TrainingSetup:
             
             self.recorded_train_loss.append(train_loss)
 
-            print(f'\n------- epoch {i_epoch} -------')
-            print('Train loss ', train_loss)
+            print('\nTrain loss ', train_loss)
 
             val_loss = self.validate(i_epoch)
 
@@ -324,12 +324,11 @@ class TrainingSetup:
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
+                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
+                val_loss += loss.item()
 
                 if batch_index % 1 == 0:
                     print (f"\r\t(val) batch = {batch_index} / {len(dataloader_val)}", end='')
-
-                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
-                val_loss += loss.item()
 
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
