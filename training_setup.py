@@ -19,6 +19,8 @@ import model_constants
 from torch.utils.data import DataLoader
 from data_loader import DatasetLanguageModel
 from torch.utils.tensorboard import SummaryWriter
+import time
+
 
 matplotlib.use("Agg")
 
@@ -183,7 +185,7 @@ class TrainingSetup:
                                                     num_decoder_layers=tlm_conf['num_decoder_layers'],
                                                     dim_feedforward=tlm_conf['dim_feedforward'],
                                                     dropout_p=tlm_conf['dropout_p'],
-                                                    ).to(self.device)
+                                                    )
         self.nn_model.to(self.device)
         print (f"\nParameters in the model = {self.nn_model.count_params()}\n")
 
@@ -269,7 +271,10 @@ class TrainingSetup:
 
             train_loss = 0      # reset before each new epoch
 
-            for batch in dataloader_train:
+            for batch_idx, batch in enumerate(dataloader_train):
+
+                if batch_idx % 1 == 0:
+                    print (f"\r\t(train) batch = {batch_idx} / {len(dataloader_train)}", end='')
 
                 pred, loss = self.nn_forward(batch)
 
@@ -302,8 +307,10 @@ class TrainingSetup:
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
-            if i_epoch % 20 == 0:
+            if i_epoch % 1 == 0:
+                start_time = time.time()
                 self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
+                print (f"Saving time = {time.time() - start_time} sec")
 
         dashboard.close()
 
@@ -317,15 +324,20 @@ class TrainingSetup:
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
-                pred, loss = self.nn_forward(batch, print_enabled=False)
+
+                if batch_index % 1 == 0:
+                    print (f"\r\t(val) batch = {batch_index} / {len(dataloader_val)}", end='')
+
+                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
                 val_loss += loss.item()
 
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
-            print('Validation loss ', val_loss)
+            print('\nValidation loss ', val_loss)
             
             # save the best so far validation loss checkpoint:
             if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
+                time.time()
                 self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
                 self.best_val_loss_so_far = val_loss
         return val_loss

@@ -2,6 +2,7 @@ import unittest
 import numpy
 import model_constants
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
+import pandas
 
 
 class TestTokenizer(unittest.TestCase):
@@ -61,7 +62,14 @@ class TestTokenizer(unittest.TestCase):
         pass
 
 
-    def test_tokenizer_with_embedding(self):
-        # TODO! check error with vocab-size vs embedding indexes (CUDA ERROR!)
-        pass
+    def test_encode_decode_with_loaded_vocab(self):
+        tokenizer = self.create_tokenizer()
+        tokenizer.load_vocab_from_file("C:/Users/Администратор/Downloads/high-frequency-vocabulary-master/20k.txt")
 
+        some_random_string = "Hello, my name is HdsUAHUDAWYDT"
+        seq = tokenizer.cleanup(data=some_random_string, tokenizer=TokenizerCollection.basic_english_by_word)
+
+        encoded_seq = tokenizer.encode_seq(seq)
+        decoded_seq = tokenizer.decode_seq(encoded_seq)
+
+        pass

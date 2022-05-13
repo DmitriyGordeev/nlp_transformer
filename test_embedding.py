@@ -2,6 +2,16 @@ import unittest
 from collections import Counter
 import torch.nn as nn
 import torch
+import sys
+import time
+
+
+def allocate_gpu():
+    T = torch.ones(48 * 1000000, dtype=torch.float, device="cuda:0")
+    in_bytes = T.element_size() * T.nelement()
+    print (T.max(), " -> size = ", in_bytes / 1024 / 1024, "Mb")
+
+
 
 class TestEmbedding(unittest.TestCase):
 
@@ -10,24 +20,18 @@ class TestEmbedding(unittest.TestCase):
         sentences = "i am new to PyTorch i am having fun"
 
         words = sentences.split(' ')
-
         vocab = Counter(words) # create a dictionary
         vocab = sorted(vocab, key=vocab.get, reverse=True)
         vocab_size = len(vocab)
 
         # map words to unique indices
         word2idx = {word: ind for ind, word in enumerate(vocab)}
-
         # word2idx = {'i': 0, 'am': 1, 'new': 2, 'to': 3, 'pytorch': 4, 'having': 5, 'fun': 6}
-
         encoded_sentences = [word2idx[word] for word in words]
-
         # encoded_sentences = [0, 1, 2, 3, 4, 0, 1, 5, 6]
 
         # let's say you want embedding dimension to be 3
         emb_dim = 3
-
         emb_layer = nn.Embedding(vocab_size, emb_dim)
         word_vectors = emb_layer(torch.LongTensor(encoded_sentences))
-
         pass

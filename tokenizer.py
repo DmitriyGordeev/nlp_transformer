@@ -73,6 +73,37 @@ class TokenizerLanguageModel:
 
         return
 
+
+    def load_vocab_from_file(self, filepath):
+        """ Loads and assembles vocab from text file with unique word on each line """
+        f = open(filepath, "r", encoding="utf-8")
+        keys = f.read().split("\n")
+        f.close()
+
+        if '' in keys:
+            keys.remove('')
+
+        vals = list(numpy.arange(4, 4 + len(keys)))
+        word2idx = dict(zip(keys, vals))
+
+        word2idx["<pad>"] = 0
+        word2idx["<sos>"] = 1
+        word2idx["<eos>"] = 2
+        word2idx["<unk>"] = 3
+
+        # must pass, otherwise can cause embedding error
+        assert max(word2idx.values()) < len(word2idx.values())
+
+        # create opposite map idx2word
+        keys = list(word2idx.keys())
+        vals = list(word2idx.values())
+        idx2word = dict(zip(vals, keys))
+
+        self.word2idx = word2idx
+        self.word2idx_size = len(word2idx)
+        self.idx2word = idx2word
+
+
     def encode_seq(
         self,
         data: list,
