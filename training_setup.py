@@ -133,10 +133,13 @@ class TrainingSetup:
         f = open(train_path, "r", encoding="utf-8")
         text = f.read()
         text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        self.tokenizer.assemble_vocab(text)
+        # self.tokenizer.assemble_vocab(text)
 
         # self.tokenizer.load_vocab_from_file("vocabs/10k.txt")
-        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding("C:/Users/User/Downloads/glove.6B/glove.6B.50d.txt")
+        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
+            "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
+            top_n=10000
+        )
 
         self.word2idx = self.tokenizer.word2idx
         self.idx2word = self.tokenizer.idx2word

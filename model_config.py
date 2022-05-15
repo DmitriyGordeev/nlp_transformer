@@ -2,7 +2,7 @@ import json
 
 TransformerLanguageModelConfig = {
     'd_model': 50,
-    'nhead': 5,
+    'nhead': 1,
     'num_encoder_layers': 8,
     'num_decoder_layers': 8,
     'dim_feedforward': 64,
@@ -25,7 +25,7 @@ TransformerLanguageModelTrainConfig = {
     'learning_rate': 0.0000075,
     'inference_max_len': 10,
     'grad_norm_clip': 0.0,
-    'batch_size': 32,
+    'batch_size': 128,
     'weight_decay': 0.0         # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }
 

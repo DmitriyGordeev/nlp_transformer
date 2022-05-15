@@ -104,20 +104,28 @@ class TokenizerLanguageModel:
         self.idx2word = idx2word
 
 
-    def load_pretrained_embedding(self, filepath):
+    def load_pretrained_embedding(self, filepath, top_n=-1):
         """ Loads pretrained embedding and respective vocab
             @:param filepath - path to file with words and pretrained embedding weights
+            @:param top_n - first n words from pretrained model (by default -1 - means all)
             @:return embedding weights as list of vectors (each vector is of dimension size)
          """
         vocab, embeddings = [], []
         with open(filepath, 'rt') as fi:
             full_content = fi.read().strip().split('\n')
 
-        for i in range(len(full_content)):
+        vocab_size = min(top_n, len(full_content))
+        if vocab_size < 0:
+            vocab_size = len(full_content)
+
+        for i in range(vocab_size):
             i_word = full_content[i].split(' ')[0]
             i_embeddings = [float(val) for val in full_content[i].split(' ')[1:]]
-            vocab.append(i_word)
+            vocab.append(i_word)            # todo: replace append() with [idx]
             embeddings.append(i_embeddings)
+
+        assert len(embeddings) > 0
+        embedding_dim = len(embeddings[0])
 
         if '' in vocab:
             vocab.remove('')
@@ -130,8 +138,16 @@ class TokenizerLanguageModel:
         word2idx["<eos>"] = 2
         word2idx["<unk>"] = 3
 
+        # add extra embedding vectors for every special token (fill with zeros?)
+        # TODO: which weights should we use for <eos> and <unk> ???
+        embeddings.insert(0, [0] * embedding_dim)
+        embeddings.insert(1, [0] * embedding_dim)
+        embeddings.insert(2, [0] * embedding_dim)
+        embeddings.insert(3, [0] * embedding_dim)
+
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
+        assert len(embeddings) == len(word2idx)
 
         # create opposite map idx2word
         keys = list(word2idx.keys())

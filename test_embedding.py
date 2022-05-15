@@ -43,11 +43,19 @@ class TestEmbedding(unittest.TestCase):
         with open(file_path, 'rt') as fi:
             full_content = fi.read().strip().split('\n')
 
-        for i in range(len(full_content)):
+        top_n = 100
+        vocab_size = min(top_n, len(full_content))
+        if vocab_size < 0:
+            vocab_size = len(full_content)
+
+        for i in range(vocab_size):
             i_word = full_content[i].split(' ')[0]
             i_embeddings = [float(val) for val in full_content[i].split(' ')[1:]]
             vocab.append(i_word)
             embeddings.append(i_embeddings)
+
+        assert len(embeddings) > 0
+        embedding_dim = len(embeddings[0])
 
         if '' in vocab:
             vocab.remove('')
@@ -59,6 +67,12 @@ class TestEmbedding(unittest.TestCase):
         word2idx["<sos>"] = 1
         word2idx["<eos>"] = 2
         word2idx["<unk>"] = 3
+
+        # add extra embedding vectors for every special token (fill with zeros?)
+        embeddings.insert(0, [0] * embedding_dim)
+        embeddings.insert(1, [0] * embedding_dim)
+        embeddings.insert(2, [0] * embedding_dim)
+        embeddings.insert(3, [0] * embedding_dim)
 
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
