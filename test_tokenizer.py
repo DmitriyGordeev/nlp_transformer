@@ -71,5 +71,10 @@ class TestTokenizer(unittest.TestCase):
 
         encoded_seq = tokenizer.encode_seq(seq)
         decoded_seq = tokenizer.decode_seq(encoded_seq)
+        pass
 
+
+    def test_load_pretrained_embedding(self):
+        tokenizer = self.create_tokenizer()
+        embedding_weights = tokenizer.load_pretrained_embedding("C:/Users/User/Downloads/glove.6B/glove.6B.50d.txt")
         pass

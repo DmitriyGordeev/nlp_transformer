@@ -94,6 +94,14 @@ class TransformerLanguageModel(nn.Module):
         """ Counts number of parameters in the network exposed to gradient optimization """
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+    def load_and_freeze_pretrained_embedding(self, tensor: torch.FloatTensor):
+        """ :param tensor - FloatTensor of size (vocab, dim_model) - pretrained weights of embedding
+            And freezes the layer to avoid training
+        """
+        self.embedding = nn.Embedding.from_pretrained(tensor)
+        self.embedding.requires_grad_(False)
+
+
 
 class TransformerSummarizerModel(nn.Module):
     def __init__(

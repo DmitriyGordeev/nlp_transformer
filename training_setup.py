@@ -64,6 +64,8 @@ class TrainingSetup:
         self.idx2word = None
         self.word2idx_size = 0
 
+        self.pretrained_embedding = None
+
         self.train_data = None
         self.val_data = None
         self.test_data = None
@@ -132,6 +134,10 @@ class TrainingSetup:
         text = f.read()
         text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
         self.tokenizer.assemble_vocab(text)
+
+        # self.tokenizer.load_vocab_from_file("vocabs/10k.txt")
+        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding("C:/Users/User/Downloads/glove.6B/glove.6B.50d.txt")
+
         self.word2idx = self.tokenizer.word2idx
         self.idx2word = self.tokenizer.idx2word
         self.word2idx_size = self.tokenizer.word2idx_size
@@ -190,6 +196,9 @@ class TrainingSetup:
                                                     dim_feedforward=tlm_conf['dim_feedforward'],
                                                     dropout_p=tlm_conf['dropout_p'],
                                                     )
+
+        self.nn_model.load_and_freeze_pretrained_embedding(torch.FloatTensor(self.pretrained_embedding))
+
         self.nn_model.to(self.device)
         print (f"\nParameters in the model = {self.nn_model.count_params()}\n")
 

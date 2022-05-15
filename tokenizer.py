@@ -104,6 +104,47 @@ class TokenizerLanguageModel:
         self.idx2word = idx2word
 
 
+    def load_pretrained_embedding(self, filepath):
+        """ Loads pretrained embedding and respective vocab
+            @:param filepath - path to file with words and pretrained embedding weights
+            @:return embedding weights as list of vectors (each vector is of dimension size)
+         """
+        vocab, embeddings = [], []
+        with open(filepath, 'rt') as fi:
+            full_content = fi.read().strip().split('\n')
+
+        for i in range(len(full_content)):
+            i_word = full_content[i].split(' ')[0]
+            i_embeddings = [float(val) for val in full_content[i].split(' ')[1:]]
+            vocab.append(i_word)
+            embeddings.append(i_embeddings)
+
+        if '' in vocab:
+            vocab.remove('')
+
+        vals = list(numpy.arange(4, 4 + len(vocab)))
+        word2idx = dict(zip(vocab, vals))
+
+        word2idx["<pad>"] = 0
+        word2idx["<sos>"] = 1
+        word2idx["<eos>"] = 2
+        word2idx["<unk>"] = 3
+
+        # must pass, otherwise can cause embedding error
+        assert max(word2idx.values()) < len(word2idx.values())
+
+        # create opposite map idx2word
+        keys = list(word2idx.keys())
+        vals = list(word2idx.values())
+        idx2word = dict(zip(vals, keys))
+
+        self.word2idx = word2idx
+        self.word2idx_size = len(word2idx)
+        self.idx2word = idx2word
+        return embeddings
+
+
+
     def encode_seq(
         self,
         data: list,
