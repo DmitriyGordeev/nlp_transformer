@@ -1,26 +1,38 @@
-from asyncio import constants
+import glob
+import os
+
+import matplotlib
+import matplotlib.pyplot as plot
 import torch
 import torch.nn as nn
 import torch.optim as top
-import glob
-import os
-import matplotlib
-import matplotlib.pyplot as plot
-import numpy
-import random
-import math
-import model
-import model_config
-from tokenizer import TokenizerLanguageModel, TokenizerCollection
-from model_config import TransformerLanguageModelConfig as tlm_conf
-from model_config import TransformerLanguageModelDataConfig as tlm_data
-from model_config import TransformerLanguageModelInfo as tlm_info
-import model_constants
 from torch.utils.data import DataLoader
-from data_loader import DatasetLanguageModel
 from torch.utils.tensorboard import SummaryWriter
 
+import model
+import model_constants
+from data_loader import DatasetLanguageModel
+from tokenizer import TokenizerLanguageModel, TokenizerCollection
+
 matplotlib.use("Agg")
+
+
+class ModelParams:
+    def __init__(
+            self,
+            d_model: int,
+            nhead: int,
+            num_encoder_layers: int,
+            num_decoder_layers: int,
+            dim_feedforward: int,
+            dropout_p: float
+    ):
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.dim_feedforward = dim_feedforward
+        self.dropout_p = dropout_p
 
 
 class TrainParams:
@@ -31,15 +43,19 @@ class TrainParams:
             inference_max_len: int,
             grad_norm_clip: float,
             batch_size: int,
-            weight_decay: float
+            weight_decay: float,
+            seq_length: int,
+            path_nm: str,
+
     ):
-        
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.inference_max_len = inference_max_len
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
         self.weight_decay = weight_decay
+        self.seq_length = seq_length
+        self.path_nm = path_nm
 
 
 class TrainingSetup:
@@ -48,8 +64,9 @@ class TrainingSetup:
             is_gpu: bool,
             is_resume_mode: bool,
             train_params: TrainParams,
+            model_params: ModelParams,
     ):
-        
+
         self.device = "cpu"
         if is_gpu:
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -71,6 +88,7 @@ class TrainingSetup:
         self.val_dataset = None
 
         self.train_params = train_params
+        self.model_params = model_params
         self.num_train_size = 0
         self.num_val_size = 0
         self.num_test_size = 0
@@ -85,12 +103,10 @@ class TrainingSetup:
         self.recorded_test_loss = []
         self.best_val_loss_so_far = -1
 
-
     def clip_grad_norm(self):
         """ Clips gradient vector if too high """
         if self.train_params.grad_norm_clip > 0:
             torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), self.train_params.grad_norm_clip)
-
 
     def get_grad_norm(self):
         """ Calculates current magnitude of the gradient vector """
@@ -103,25 +119,24 @@ class TrainingSetup:
             gradient_norm = gradient_norm ** 0.5
             return gradient_norm
 
-
     def load_data(
-        self,
-        train_path: str,
-        test_path: str,
-        val_path: str,
+            self,
+            train_path: str,
+            test_path: str,
+            val_path: str,
     ):
         """ Reads file, tokenize and prepare tensors to train """
         self.tokenizer = TokenizerLanguageModel(
-                                            pad_token=model_constants.pad_token,
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            unk_token=model_constants.unk_token,
-                                            pad_token_num=model_constants.pad_token_num,
-                                            start_token_num=model_constants.start_token_num,
-                                            end_token_num=model_constants.end_token_num,
-                                            unk_token_num=model_constants.unk_token_num,
-                                            )
-        
+            pad_token=model_constants.pad_token,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            unk_token=model_constants.unk_token,
+            pad_token_num=model_constants.pad_token_num,
+            start_token_num=model_constants.start_token_num,
+            end_token_num=model_constants.end_token_num,
+            unk_token_num=model_constants.unk_token_num,
+        )
+
         f = open(train_path, "r", encoding="utf-8")
         text = f.read()
         text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
@@ -132,9 +147,9 @@ class TrainingSetup:
         self.train_data = self.tokenizer.encode_seq(text)
         f.close()
 
-        print (f"Vocab size {self.word2idx_size}")
+        print(f"Vocab size {self.word2idx_size}")
 
-        torch.save(self.word2idx, 'models/' + tlm_info['name'] + '/vocab.pt')
+        torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
 
         f = open(test_path, "r", encoding="utf-8")
         text = f.read()
@@ -149,44 +164,42 @@ class TrainingSetup:
         f.close()
 
         self.train_dataset = DatasetLanguageModel(
-                                            data=self.train_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
+            data=self.train_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
         self.test_dataset = DatasetLanguageModel(
-                                            data=self.test_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
+            data=self.test_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
         self.val_dataset = DatasetLanguageModel(
-                                            data=self.val_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
-        
+            data=self.val_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
 
     def setup_nn(self):
         self.nn_model = model.TransformerLanguageModel(
-                                                    num_tokens=self.word2idx_size,
-                                                    d_model=tlm_conf['d_model'],
-                                                    nhead=tlm_conf['nhead'],
-                                                    num_encoder_layers=tlm_conf['num_encoder_layers'],
-                                                    num_decoder_layers=tlm_conf['num_decoder_layers'],
-                                                    dim_feedforward=tlm_conf['dim_feedforward'],
-                                                    dropout_p=tlm_conf['dropout_p'],
-                                                    ).to(self.device)
+            num_tokens=self.word2idx_size,
+            d_model=self.model_params.d_model,
+            nhead=self.model_params.nhead,
+            num_encoder_layers=self.model_params.num_encoder_layers,
+            num_decoder_layers=self.model_params.num_decoder_layers,
+            dim_feedforward=self.model_params.dim_feedforward,
+            dropout_p=self.model_params.dropout_p,
+        ).to(self.device)
         self.nn_model.to(self.device)
-        print (f"\nParameters in the model = {self.nn_model.count_params()}\n")
-
+        print(f"\nParameters in the model = {self.nn_model.count_params()}\n")
 
     def setup_optimizers(self):
         # self.optimizer = top.RMSprop(self.nn_model.parameters(), lr=self.train_params.learning_rate)
@@ -244,7 +257,6 @@ class TrainingSetup:
 
         return pred, loss
 
-
     def train(self):
 
         dashboard = SummaryWriter()
@@ -253,21 +265,21 @@ class TrainingSetup:
 
         # If we specified resume mode - load checkpoint
         if self.is_resume_mode:
-            start_epoch = self.load_checkpoint('models/' + tlm_info['name'] + '/checkpoints/')
+            start_epoch = self.load_checkpoint('models/' + self.train_params.path_nm + '/checkpoints/')
             self.train_params.epochs += start_epoch
             print("resume from epoch:", start_epoch, " till epoch:", self.train_params.epochs)
         else:
             print("training from scratch")
 
         dataloader_train = DataLoader(
-                                    dataset=self.train_dataset,
-                                    batch_size=self.train_params.batch_size,
-                                    shuffle=True,
-                                    )
-                
+            dataset=self.train_dataset,
+            batch_size=self.train_params.batch_size,
+            shuffle=True,
+        )
+
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
-            train_loss = 0      # reset before each new epoch
+            train_loss = 0  # reset before each new epoch
 
             for batch in dataloader_train:
 
@@ -279,14 +291,14 @@ class TrainingSetup:
                 # reduce the gradient step if necessary (and too big)
                 if self.train_params.grad_norm_clip != 0:
                     self.clip_grad_norm()
-                
+
                 self.optimizer.step()
 
                 with torch.no_grad():
                     train_loss += loss.item()
-            
+
             train_loss = float(train_loss) / len(dataloader_train)
-            
+
             self.recorded_train_loss.append(train_loss)
 
             print(f'\n------- epoch {i_epoch} -------')
@@ -294,7 +306,8 @@ class TrainingSetup:
 
             val_loss = self.validate(i_epoch)
 
-            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
+            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]},
+                                  i_epoch)
 
             self.scheduler.step(val_loss)
 
@@ -303,17 +316,16 @@ class TrainingSetup:
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
             if i_epoch % 20 == 0:
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
+                self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/checkpoints/')
 
         dashboard.close()
 
-
     def validate(self, i_epoch):
         dataloader_val = DataLoader(
-                                    dataset=self.val_dataset,
-                                    batch_size=self.train_params.batch_size,
-                                    shuffle=True,
-                                    )
+            dataset=self.val_dataset,
+            batch_size=self.train_params.batch_size,
+            shuffle=True,
+        )
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
@@ -323,21 +335,20 @@ class TrainingSetup:
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
             print('Validation loss ', val_loss)
-            
+
             # save the best so far validation loss checkpoint:
             if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
+                self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/best_val_model_so_far/')
                 self.best_val_loss_so_far = val_loss
         return val_loss
-
 
     def test(self):
         with torch.no_grad():
             dataloader_test = DataLoader(
-                                        dataset=self.test_dataset,
-                                        batch_size=1,
-                                        shuffle=True,
-                                        )
+                dataset=self.test_dataset,
+                batch_size=1,
+                shuffle=True,
+            )
             test_loss = 0
             self.nn_model.eval()
 
@@ -350,7 +361,6 @@ class TrainingSetup:
             self.recorded_test_loss.append(test_loss)
             print(f'\n------- Test loss : {self.recorded_test_loss[-1]} -------')
 
-
     def predict(self, input_sequence, max_length=10):
         """ Infer sequence from input_sequence """
         self.nn_model.eval()
@@ -362,7 +372,7 @@ class TrainingSetup:
 
             pred = self.nn_model(input_sequence, y_input, tgt_mask)
 
-            next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+            next_item = pred.topk(1)[1].view(-1)[-1].item()  # num with highest probability
             next_item = torch.tensor([[next_item]], device=self.device)
 
             # Concatenate previous input with predicted best word
@@ -374,7 +384,6 @@ class TrainingSetup:
 
         return y_input.view(-1).tolist()
 
-
     def save_checkpoint(self, current_epoch: int, directory: str):
         """ Saves model, optimizer and scheduler state in specified dir """
         self.remove_prev_checkpoints(directory)
@@ -384,9 +393,10 @@ class TrainingSetup:
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict(),
         }
-        torch.save(checkpoint_state_dict, directory + f"/checkpoint.{current_epoch}.pt")     # saving epoch, model, optimizer, scheduler (as dicts)
-        torch.save(self.nn_model, directory + f"/model.{current_epoch}.pth")    # saving model file separately (don't need to parse dict on load)
-
+        torch.save(checkpoint_state_dict,
+                   directory + f"/checkpoint.{current_epoch}.pt")  # saving epoch, model, optimizer, scheduler (as dicts)
+        torch.save(self.nn_model,
+                   directory + f"/model.{current_epoch}.pth")  # saving model file separately (don't need to parse dict on load)
 
     @staticmethod
     def remove_prev_checkpoints(directory: str):
@@ -397,7 +407,6 @@ class TrainingSetup:
                 os.remove(filePath)
             except:
                 print("Error while deleting file : ", filePath)
-
 
     def load_checkpoint(self, directory: str):
         """ Searches for checkpoint*.pt and model*.pth files and loads them """
@@ -411,7 +420,7 @@ class TrainingSetup:
             print("Couldn't find model* files in: " + directory)
             exit(1)
 
-        print (f"Checkpoint file: {checkpoint_files[0]}")
+        print(f"Checkpoint file: {checkpoint_files[0]}")
         print(f"Model file: {model_files[0]}")
 
         # self.nn_model = torch.load(model_files[0])
@@ -420,7 +429,6 @@ class TrainingSetup:
         self.optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
         self.scheduler.load_state_dict(checkpoint_state_dict['scheduler'])
         return checkpoint_state_dict['epoch']
-
 
     def plot_losses(self, last_n=-1):
         tl = self.recorded_train_loss
@@ -449,7 +457,6 @@ class TrainingSetup:
         plot.close()
         plot.clf()
 
-
     def run(self):
         """ encapsulates other functions and runs them in the right order """
         self.setup_nn()
@@ -457,9 +464,7 @@ class TrainingSetup:
         self.train()
         self.test()
 
-
     def set_optimizer_lr(self, new_learning_rate):
         """ Alters optimizer's learning rate on the go if necessary """
         for g in self.optimizer.param_groups:
             g['lr'] = new_learning_rate
-

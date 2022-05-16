@@ -1,4 +1,16 @@
 import json
+import numpy
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.integer):
+            return int(obj)
+        if isinstance(obj, numpy.floating):
+            return float(obj)
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
 
 TransformerLanguageModelConfig = {
     'd_model': 64,
@@ -30,13 +42,19 @@ TransformerLanguageModelTrainConfig = {
 }
 
 
-def save_model_config(directory):
+def save_model_config(directory, dict_param=dict(), mode=""):
     """ Saves all settings to model_config.json file """
     json_dict = dict()
-    json_dict["langModel"] = TransformerLanguageModelConfig
-    json_dict["data"] = TransformerLanguageModelDataConfig
-    json_dict["info"] = TransformerLanguageModelInfo
-    json_dict["train"] = TransformerLanguageModelTrainConfig
+    if mode=='M':
+        json_dict["langModel"] = TransformerLanguageModelConfig
+        json_dict["data"] = TransformerLanguageModelDataConfig
+        json_dict["info"] = TransformerLanguageModelInfo
+        json_dict["train"] = TransformerLanguageModelTrainConfig
+    if mode=='A':
+        json_dict["langModel"] = dict_param['TransformerLanguageModelConfig']
+        json_dict["data"] = dict_param['TransformerLanguageModelDataConfig']
+        json_dict["info"] = dict_param['TransformerLanguageModelInfo']
+        json_dict["train"] = dict_param['TransformerLanguageModelTrainConfig']
 
     f = open(directory + "/model_config.json", "w")
     f.write(json.dumps(json_dict, indent=4))
