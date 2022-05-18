@@ -346,7 +346,7 @@ class TrainingSetup:
             # snapshot = (epoch + model's params + optimizer + scheduler)
             if i_epoch % 5 == 0:
                 start_time = time.time()
-                self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
+                self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/checkpoints/')
                 print (f"Saving time = {time.time() - start_time} sec")
 
         dashboard.close()
@@ -389,7 +389,7 @@ class TrainingSetup:
                     print (f"[debug] self.best_val_increase_counter = {self.best_val_increase_counter}")
                     if self.best_val_increase_counter == self.best_val_counter_limit:
                         t = time.time()
-                        self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
+                        self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/best_val_model_so_far/')
                         self.val_on_save = val_loss
                         self.best_val_increase_counter = 0
                         print (f"Checkpoint saved in {time.time() - t} sec")

@@ -42,15 +42,15 @@ TransformerLanguageModelTrainConfig = {
 }
 
 
-def save_model_config(directory, dict_param=dict(), mode=""):
+def save_model_config(directory, dict_param=None):
     """ Saves all settings to model_config.json file """
     json_dict = dict()
-    if mode=='M':
+    if dict_param is None:      # manual
         json_dict["langModel"] = TransformerLanguageModelConfig
         json_dict["data"] = TransformerLanguageModelDataConfig
         json_dict["info"] = TransformerLanguageModelInfo
         json_dict["train"] = TransformerLanguageModelTrainConfig
-    if mode=='A':
+    else:       # automatic
         json_dict["langModel"] = dict_param['TransformerLanguageModelConfig']
         json_dict["data"] = dict_param['TransformerLanguageModelDataConfig']
         json_dict["info"] = dict_param['TransformerLanguageModelInfo']

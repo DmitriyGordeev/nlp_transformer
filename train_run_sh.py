@@ -55,7 +55,7 @@ if __name__ == "__main__":
         Path('models/' + TransformerLanguageModelInfo['name'] + '/best_val_model_so_far').mkdir(parents=True,
                                                                                                 exist_ok=True)
 
-        save_model_config('models/' + TransformerLanguageModelInfo['name'], dict_param, 'A')
+        save_model_config('models/' + TransformerLanguageModelInfo['name'], dict_param)
 
         model_params = ModelParams(d_model=int(param['d_model'][i]),
                                    nhead=int(param['nhead'][i]),
