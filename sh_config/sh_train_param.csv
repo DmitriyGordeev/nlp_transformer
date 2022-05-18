@@ -1,0 +1,2 @@
+ID,ID_MODEL,train_path,test_path,val_path,seq_length,epochs,learning_rate,inference_max_len,grad_norm_clip,batch_size,weight_decay
+1,1,data/JVText.txt,data/JV13_part1.txt,data/TheTimeMachine.txt,10,5,0.0000075,10,0,128,0

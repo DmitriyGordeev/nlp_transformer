@@ -21,8 +21,27 @@ from data_loader import DatasetLanguageModel
 from torch.utils.tensorboard import SummaryWriter
 import time
 
+from tokenizer import TokenizerLanguageModel, TokenizerCollection
 
 matplotlib.use("Agg")
+
+
+class ModelParams:
+    def __init__(
+            self,
+            d_model: int,
+            nhead: int,
+            num_encoder_layers: int,
+            num_decoder_layers: int,
+            dim_feedforward: int,
+            dropout_p: float
+    ):
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.dim_feedforward = dim_feedforward
+        self.dropout_p = dropout_p
 
 
 class TrainParams:
@@ -33,15 +52,19 @@ class TrainParams:
             inference_max_len: int,
             grad_norm_clip: float,
             batch_size: int,
-            weight_decay: float
+            weight_decay: float,
+            seq_length: int,
+            path_nm: str,
+
     ):
-        
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.inference_max_len = inference_max_len
         self.grad_norm_clip = grad_norm_clip
         self.batch_size = batch_size
         self.weight_decay = weight_decay
+        self.seq_length = seq_length
+        self.path_nm = path_nm
 
 
 class TrainingSetup:
@@ -50,6 +73,7 @@ class TrainingSetup:
             is_gpu: bool,
             is_resume_mode: bool,
             train_params: TrainParams,
+            model_params: ModelParams,
     ):
         
         self.device = "cpu"
@@ -75,6 +99,7 @@ class TrainingSetup:
         self.val_dataset = None
 
         self.train_params = train_params
+        self.model_params = model_params
         self.num_train_size = 0
         self.num_val_size = 0
         self.num_test_size = 0
@@ -149,7 +174,7 @@ class TrainingSetup:
 
         print (f"Vocab size {self.word2idx_size}")
 
-        torch.save(self.word2idx, 'models/' + tlm_info['name'] + '/vocab.pt')
+        torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
 
         f = open(test_path, "r", encoding="utf-8")
         text = f.read()
@@ -164,44 +189,40 @@ class TrainingSetup:
         f.close()
 
         self.train_dataset = DatasetLanguageModel(
-                                            data=self.train_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
+            data=self.train_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
         self.test_dataset = DatasetLanguageModel(
-                                            data=self.test_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
+            data=self.test_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
         self.val_dataset = DatasetLanguageModel(
-                                            data=self.val_data,
-                                            sequence_length=tlm_data['seq_length'],
-                                            start_token=model_constants.start_token,
-                                            end_token=model_constants.end_token,
-                                            pad_token=model_constants.pad_token,
-                                            vocab=self.word2idx,
-                                            )
-        
+            data=self.val_data,
+            sequence_length=self.train_params.seq_length,
+            start_token=model_constants.start_token,
+            end_token=model_constants.end_token,
+            pad_token=model_constants.pad_token,
+            vocab=self.word2idx,
+        )
 
     def setup_nn(self):
         self.nn_model = model.TransformerLanguageModel(
-                                                    num_tokens=self.word2idx_size,
-                                                    d_model=tlm_conf['d_model'],
-                                                    nhead=tlm_conf['nhead'],
-                                                    num_encoder_layers=tlm_conf['num_encoder_layers'],
-                                                    num_decoder_layers=tlm_conf['num_decoder_layers'],
-                                                    dim_feedforward=tlm_conf['dim_feedforward'],
-                                                    dropout_p=tlm_conf['dropout_p'],
-                                                    )
-
-        self.nn_model.load_and_freeze_pretrained_embedding(torch.FloatTensor(self.pretrained_embedding))
-
+            num_tokens=self.word2idx_size,
+            d_model=self.model_params.d_model,
+            nhead=self.model_params.nhead,
+            num_encoder_layers=self.model_params.num_encoder_layers,
+            num_decoder_layers=self.model_params.num_decoder_layers,
+            dim_feedforward=self.model_params.dim_feedforward,
+            dropout_p=self.model_params.dropout_p,
+        ).to(self.device)
         self.nn_model.to(self.device)
         print (f"\nParameters in the model = {self.nn_model.count_params()}\n")
 
@@ -222,7 +243,6 @@ class TrainingSetup:
                                                                     patience=5,
                                                                     threshold=0.001,
                                                                     factor=0.5)
-
 
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
@@ -272,7 +292,7 @@ class TrainingSetup:
 
         # If we specified resume mode - load checkpoint
         if self.is_resume_mode:
-            start_epoch = self.load_checkpoint('models/' + tlm_info['name'] + '/checkpoints/')
+            start_epoch = self.load_checkpoint('models/' + self.train_params.path_nm + '/checkpoints/')
             self.train_params.epochs += start_epoch
             print("resume from epoch:", start_epoch, " till epoch:", self.train_params.epochs)
         else:
@@ -341,7 +361,7 @@ class TrainingSetup:
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
-                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
+                pred, loss = self.nn_forward(batch, print_enabled=False)
                 val_loss += loss.item()
 
                 if batch_index % 1 == 0:
@@ -350,7 +370,7 @@ class TrainingSetup:
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
             print(f'\nValidation loss', val_loss)
-            
+
             # # save the best so far validation loss checkpoint:
             # if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
             #     time.time()
@@ -513,5 +533,4 @@ class TrainingSetup:
         """ Alters optimizer's learning rate on the go if necessary """
         for g in self.optimizer.param_groups:
             g['lr'] = new_learning_rate
-
 
