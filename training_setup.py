@@ -287,7 +287,7 @@ class TrainingSetup:
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
             train_loss = 0      # reset before each new epoch
-            print(f'\n------- epoch {i_epoch} / {self.train_params.epochs} -------')
+            print(f'\n------- epoch {i_epoch} / {self.train_params.epochs - 1} -------')
 
             for batch_idx, batch in enumerate(dataloader_train):
 
@@ -324,7 +324,7 @@ class TrainingSetup:
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
-            if i_epoch % 20 == 0:
+            if i_epoch % 5 == 0:
                 start_time = time.time()
                 self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/checkpoints/')
                 print (f"Saving time = {time.time() - start_time} sec")

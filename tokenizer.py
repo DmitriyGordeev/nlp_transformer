@@ -140,10 +140,10 @@ class TokenizerLanguageModel:
 
         # add extra embedding vectors for every special token (fill with zeros?)
         # TODO: which weights should we use for <eos> and <unk> ???
-        embeddings.insert(0, [0] * embedding_dim)
-        embeddings.insert(1, [0] * embedding_dim)
-        embeddings.insert(2, [0] * embedding_dim)
-        embeddings.insert(3, [0] * embedding_dim)
+        embeddings.insert(0, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(1, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(2, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(3, list(numpy.random.random(embedding_dim)))
 
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
