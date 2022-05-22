@@ -33,12 +33,25 @@ class TokenizerLanguageModel:
 
         return
 
+
     @staticmethod
     def cleanup(
         data: str,
         tokenizer,
     ):
         return tokenizer(data)
+
+
+    @staticmethod
+    def pad_seq(
+        seq: list,
+        length: int,
+        pad_token: str,
+        start_token: str,
+        end_token: str,
+    ):
+        return [start_token] + seq + [end_token] + [pad_token] * max(length - 2 - len(seq), 0)
+    
 
     @staticmethod
     def buildup(
@@ -53,6 +66,7 @@ class TokenizerLanguageModel:
         out = out[:-1]
 
         return out
+
 
     def assemble_vocab(
         self,
@@ -86,10 +100,10 @@ class TokenizerLanguageModel:
         vals = list(numpy.arange(4, 4 + len(keys)))
         word2idx = dict(zip(keys, vals))
 
-        word2idx["<pad>"] = 0
-        word2idx["<sos>"] = 1
-        word2idx["<eos>"] = 2
-        word2idx["<unk>"] = 3
+        word2idx[self.pad_token] = self.pad_token_num
+        word2idx[self.start_token] = self.start_token_num
+        word2idx[self.end_token] = self.end_token_num
+        word2idx[self.unk_token] = self.unk_token_num
 
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
@@ -133,17 +147,17 @@ class TokenizerLanguageModel:
         vals = list(numpy.arange(4, 4 + len(vocab)))
         word2idx = dict(zip(vocab, vals))
 
-        word2idx["<pad>"] = 0
-        word2idx["<sos>"] = 1
-        word2idx["<eos>"] = 2
-        word2idx["<unk>"] = 3
+        word2idx[self.pad_token] = self.pad_token_num
+        word2idx[self.start_token] = self.start_token_num
+        word2idx[self.end_token] = self.end_token_num
+        word2idx[self.unk_token] = self.unk_token_num
 
         # add extra embedding vectors for every special token (fill with zeros?)
         # TODO: which weights should we use for <eos> and <unk> ???
-        embeddings.insert(0, list(numpy.random.random(embedding_dim)))
-        embeddings.insert(1, list(numpy.random.random(embedding_dim)))
-        embeddings.insert(2, list(numpy.random.random(embedding_dim)))
-        embeddings.insert(3, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(self.pad_token_num, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(self.start_token_num, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(self.end_token_num, list(numpy.random.random(embedding_dim)))
+        embeddings.insert(self.unk_token_num, list(numpy.random.random(embedding_dim)))
 
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
@@ -158,7 +172,6 @@ class TokenizerLanguageModel:
         self.word2idx_size = len(word2idx)
         self.idx2word = idx2word
         return embeddings
-
 
 
     def encode_seq(
@@ -177,6 +190,7 @@ class TokenizerLanguageModel:
 
         return out
 
+
     def decode_seq(
         self,
         data: list,
@@ -189,7 +203,8 @@ class TokenizerLanguageModel:
             out.append(self.idx2word[el])
 
         return out
-    
+
+
     def set_vocab(
         self,
         word2idx: dict,
@@ -201,6 +216,7 @@ class TokenizerLanguageModel:
         self.word2idx_size = len(self.word2idx)
 
         return
+
 
 class TokenizerCollection:
     def __init__(self):
