@@ -7,3 +7,4 @@ venv
 models
 runs
 trash.py
+model.jit

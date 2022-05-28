@@ -14,18 +14,18 @@ class NpEncoder(json.JSONEncoder):
 
 TransformerLanguageModelConfig = {
     'd_model': 50,
-    'nhead': 1,
+    'nhead': 10,
     'num_encoder_layers': 8,
     'num_decoder_layers': 8,
-    'dim_feedforward': 64,
+    'dim_feedforward': 8096,
     'dropout_p': 0.1,
 }
 
 TransformerLanguageModelDataConfig = {
-    'train_path': 'data/JVText.txt',
+    'train_path': 'data/concat.txt',
     'test_path': 'data/JV13_part1.txt',
     'val_path': 'data/TheTimeMachine.txt',
-    'seq_length': 10,
+    'seq_length': 50,
 }
 
 TransformerLanguageModelInfo = {
@@ -33,11 +33,11 @@ TransformerLanguageModelInfo = {
 }
 
 TransformerLanguageModelTrainConfig = {
-    'epochs': 500,
+    'epochs': 100,
     'learning_rate': 0.0000075,
-    'inference_max_len': 10,
+    'inference_max_len': 50,
     'grad_norm_clip': 0.0,
-    'batch_size': 128,
+    'batch_size': 48,
     'weight_decay': 0.0         # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }
 

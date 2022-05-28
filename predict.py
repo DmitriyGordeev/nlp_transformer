@@ -53,16 +53,18 @@ def predict(
     return ans
 
 
-begin = 'I found some interesting'
+if __name__ == "__main__":
 
-nn_model = torch.load('models/model1/model.pth', map_location=torch.device(device))
-vocab = torch.load('models/model1/vocab.pt', map_location=torch.device(device))
+    begin = 'Where are my cookies '
 
-continuation = predict(
-                    model=nn_model,
-                    word2idx=vocab,
-                    text=begin,
-                    max_length=1,
-                    )
-print('begining:', begin)
-print('continuation:', continuation)
+    nn_model = torch.load('models/model1/checkpoints/model.180.pth', map_location=torch.device(device))
+    vocab = torch.load('models/model1/vocab.pt', map_location=torch.device(device))
+
+    continuation = predict(
+                        model=nn_model,
+                        word2idx=vocab,
+                        text=begin,
+                        max_length=10,
+                        )
+    print('begining:', begin)
+    print('continuation:', continuation)

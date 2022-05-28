@@ -163,7 +163,7 @@ class TrainingSetup:
         # self.tokenizer.load_vocab_from_file("vocabs/10k.txt")
         self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
             "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
-            top_n=10000
+            top_n=25000
         )
 
         self.word2idx = self.tokenizer.word2idx
@@ -243,6 +243,7 @@ class TrainingSetup:
                                                                     patience=5,
                                                                     threshold=0.001,
                                                                     factor=0.5)
+
 
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
@@ -361,7 +362,7 @@ class TrainingSetup:
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
-                pred, loss = self.nn_forward(batch, print_enabled=False)
+                pred, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
                 val_loss += loss.item()
 
                 if batch_index % 1 == 0:
@@ -370,13 +371,6 @@ class TrainingSetup:
             val_loss = float(val_loss) / len(dataloader_val)
             self.recorded_val_loss.append(val_loss)
             print(f'\nValidation loss', val_loss)
-
-            # # save the best so far validation loss checkpoint:
-            # if val_loss < self.best_val_loss_so_far or self.best_val_loss_so_far == -1:
-            #     time.time()
-            #     self.save_checkpoint(i_epoch, 'models/' + tlm_info['name'] + '/best_val_model_so_far/')
-            #     self.best_val_loss_so_far = val_loss
-
 
             if self.val_on_save > 0 and val_loss < self.val_on_save:
                 print (f"[debug] Reaching another loss decreasing region, reset self.val_on_save")
