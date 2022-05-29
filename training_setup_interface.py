@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from data_loader import DatasetLanguageModel
 from torch.utils.tensorboard import SummaryWriter
 import time
-
+from abc import ABCMeta, abstractmethod
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
 
 matplotlib.use("Agg")
@@ -134,6 +134,8 @@ class TrainingSetup:
             gradient_norm = gradient_norm ** 0.5
             return gradient_norm
 
+
+    @abstractmethod
     def load_data(
             self,
             train_path: str,
@@ -141,107 +143,24 @@ class TrainingSetup:
             val_path: str,
     ):
         """ Reads file, tokenize and prepare tensors to train """
-        self.tokenizer = TokenizerLanguageModel(
-            pad_token=model_constants.pad_token,
-            start_token=model_constants.start_token,
-            end_token=model_constants.end_token,
-            unk_token=model_constants.unk_token,
-            pad_token_num=model_constants.pad_token_num,
-            start_token_num=model_constants.start_token_num,
-            end_token_num=model_constants.end_token_num,
-            unk_token_num=model_constants.unk_token_num,
-        )
+        pass
 
-        f = open(train_path, "r", encoding="utf-8")
-        text = f.read()
-        text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        # self.tokenizer.assemble_vocab(text)
-
-        # self.tokenizer.load_vocab_from_file("vocabs/10k.txt")
-        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
-            "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
-            top_n=25000
-        )
-
-        self.word2idx = self.tokenizer.word2idx
-        self.idx2word = self.tokenizer.idx2word
-        self.word2idx_size = self.tokenizer.word2idx_size
-        self.train_data = self.tokenizer.encode_seq(text)
-        f.close()
-
-        print(f"Vocab size {self.word2idx_size}")
-
-        torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
-
-        f = open(test_path, "r", encoding="utf-8")
-        text = f.read()
-        text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        self.test_data = self.tokenizer.encode_seq(text)
-        f.close()
-
-        f = open(val_path, "r", encoding="utf-8")
-        text = f.read()
-        text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        self.val_data = self.tokenizer.encode_seq(text)
-        f.close()
-
-        self.train_dataset = DatasetLanguageModel(
-            data=self.train_data,
-            sequence_length=self.train_params.seq_length,
-            start_token=model_constants.start_token,
-            end_token=model_constants.end_token,
-            pad_token=model_constants.pad_token,
-            vocab=self.word2idx,
-        )
-        self.test_dataset = DatasetLanguageModel(
-            data=self.test_data,
-            sequence_length=self.train_params.seq_length,
-            start_token=model_constants.start_token,
-            end_token=model_constants.end_token,
-            pad_token=model_constants.pad_token,
-            vocab=self.word2idx,
-        )
-        self.val_dataset = DatasetLanguageModel(
-            data=self.val_data,
-            sequence_length=self.train_params.seq_length,
-            start_token=model_constants.start_token,
-            end_token=model_constants.end_token,
-            pad_token=model_constants.pad_token,
-            vocab=self.word2idx,
-        )
-
+    @abstractmethod
     def setup_nn(self):
-        self.nn_model = model.TransformerLanguageModel(
-            num_tokens=self.word2idx_size,
-            d_model=self.model_params.d_model,
-            nhead=self.model_params.nhead,
-            num_encoder_layers=self.model_params.num_encoder_layers,
-            num_decoder_layers=self.model_params.num_decoder_layers,
-            dim_feedforward=self.model_params.dim_feedforward,
-            dropout_p=self.model_params.dropout_p,
-        ).to(self.device)
-        self.nn_model.to(self.device)
-        print(f"\nParameters in the model = {self.nn_model.count_params()}\n")
+        """ Overriden function must assign self.nn_model"""
+        pass
 
+    @abstractmethod
     def setup_optimizers(self):
-        # self.optimizer = top.RMSprop(self.nn_model.parameters(), lr=self.train_params.learning_rate)
-        self.optimizer = top.Adam(self.nn_model.parameters(),
-                                  lr=self.train_params.learning_rate,
-                                  weight_decay=self.train_params.weight_decay)
+        """ Overriden function should assign
+         self.optimizer, self.criterion and self.scheduler """
+        pass
 
-        self.criterion = nn.CrossEntropyLoss()
-
-        # self.scheduler = top.lr_scheduler.StepLR(self.optimizer,
-        #                                          step_size=50,
-        #                                          gamma=0.95)
-
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
-                                                                    patience=5,
-                                                                    threshold=0.001,
-                                                                    factor=0.5)
-
+    @abstractmethod
     def nn_forward(self, batch, print_enabled=False):
-        """ Helper function to be invoked everywhere on training, validation and test stages
+        """ This must invoke forward pass of the model and calculate loss
+        using predefined self.criterion
+        Overriden function must describe forward pass of the loaded model and yield prediction
         :param batch:
         :param print_enabled: if true prints predicted sequence
         :return tuple( prediction tensor, calculated loss tensor )
@@ -249,11 +168,8 @@ class TrainingSetup:
         return torch.FloatTensor(), torch.FloatTensor()
 
 
-
     def train(self):
-
         dashboard = SummaryWriter()
-
         start_epoch = 0
 
         # If we specified resume mode - load checkpoint
@@ -271,17 +187,14 @@ class TrainingSetup:
         )
 
         for i_epoch in range(start_epoch, self.train_params.epochs):
-
             train_loss = 0  # reset before each new epoch
             print(f'\n------- epoch {i_epoch} / {self.train_params.epochs - 1} -------')
 
             for batch_idx, batch in enumerate(dataloader_train):
-
                 if batch_idx % 1 == 0:
                     print(f"\r\t(train) batch = {batch_idx} / {len(dataloader_train)}", end='')
 
                 pred, loss = self.nn_forward(batch)
-
                 self.optimizer.zero_grad()
                 loss.backward()
 
@@ -290,14 +203,11 @@ class TrainingSetup:
                     self.clip_grad_norm()
 
                 self.optimizer.step()
-
                 with torch.no_grad():
                     train_loss += loss.item()
 
             train_loss = float(train_loss) / len(dataloader_train)
-
             self.recorded_train_loss.append(train_loss)
-
             print('\nTrain loss ', train_loss)
 
             val_loss = self.validate(i_epoch)
@@ -305,7 +215,8 @@ class TrainingSetup:
             dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]},
                                   i_epoch)
 
-            self.scheduler.step(val_loss)
+            if self.scheduler is not None:
+                self.scheduler.step(val_loss)
 
             print(f"learning_rate = {self.optimizer.param_groups[0]['lr']}")
 
@@ -408,9 +319,11 @@ class TrainingSetup:
         checkpoint_state_dict = {
             'epoch': current_epoch,
             'model': self.nn_model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'scheduler': self.scheduler.state_dict(),
+            'optimizer': self.optimizer.state_dict()
         }
+        if self.scheduler is not None:
+            checkpoint_state_dict["scheduler"] = self.scheduler.state_dict()
+
         torch.save(checkpoint_state_dict,
                    directory + f"/checkpoint.{current_epoch}.pt")  # saving epoch, model, optimizer, scheduler (as dicts)
         torch.save(self.nn_model,
@@ -445,7 +358,8 @@ class TrainingSetup:
         checkpoint_state_dict = torch.load(checkpoint_files[0])
         self.nn_model.load_state_dict(checkpoint_state_dict['model'])
         self.optimizer.load_state_dict(checkpoint_state_dict['optimizer'])
-        self.scheduler.load_state_dict(checkpoint_state_dict['scheduler'])
+        if 'scheduler' in checkpoint_state_dict:
+            self.scheduler.load_state_dict(checkpoint_state_dict['scheduler'])
         return checkpoint_state_dict['epoch']
 
     def plot_losses(self, last_n=-1):
@@ -478,6 +392,9 @@ class TrainingSetup:
     def run(self):
         """ encapsulates other functions and runs them in the right order """
         self.setup_nn()
+        if self.nn_model is not None:
+            self.nn_model.to(self.device)
+            print(f"\nParameters in the model = {self.nn_model.count_params()}\n")
         self.setup_optimizers()
         self.train()
         self.test()
