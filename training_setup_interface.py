@@ -158,7 +158,9 @@ class TrainingSetup:
 
     @abstractmethod
     def nn_forward(self, batch, print_enabled=False):
-        """ Helper function to be invoked everywhere on training, validation and test stages
+        """ This must invoke forward pass of the model and calculate loss
+        using predefined self.criterion
+        Overriden function must describe forward pass of the loaded model and yield prediction
         :param batch:
         :param print_enabled: if true prints predicted sequence
         :return tuple( prediction tensor, calculated loss tensor )
