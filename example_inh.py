@@ -1,8 +1,12 @@
+from abc import ABCMeta, abstractmethod
 
-class Object:
+
+class Object(object):
+    __metaclass__ = ABCMeta
     def __init__(self, a):
         self.a = a
 
+    @abstractmethod
     def foo(self, x):
         return 0
 
@@ -13,8 +17,6 @@ class CObject(Object):
         super().__init__(a)
         self.b = b
 
-    def foo(self, x):
-        print(self.a, ", arg:", x)
 
 
 class User:
