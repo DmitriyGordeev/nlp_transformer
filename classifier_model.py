@@ -41,6 +41,8 @@ class TransformerClassifierModel(nn.Module):
             encoder_layer,
             num_layers=num_encoder_layers,
         )
+
+        # todo: should we use sigmoid, tanh, softmax here ?
         self.classifier = nn.Linear(d_model, 2)
 
 

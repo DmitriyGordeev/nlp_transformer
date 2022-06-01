@@ -1,5 +1,6 @@
 from training_setup_interface import *
 from classifier_model import *
+import pandas
 
 
 class ClassiferSetup(TrainingSetup):
@@ -29,6 +30,33 @@ class ClassiferSetup(TrainingSetup):
             end_token_num=model_constants.end_token_num,
             unk_token_num=model_constants.unk_token_num,
         )
+
+        embedding_weights = self.tokenizer.load_pretrained_embedding(
+            "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
+            top_n=25000
+        )
+        df = pandas.read_csv("data/classification/IMDB_dataset.csv")
+
+        encoded_reviews = [0] * df.shape[0]
+        tgt_classes = [0] * df.shape[0]
+
+        for i in range(df.shape[0]):
+            review = df.iloc[i, 0]
+            seq = self.tokenizer.cleanup(data=review, tokenizer=TokenizerCollection.basic_english_by_word)
+            enc_seq = self.tokenizer.encode_seq(seq)
+            encoded_reviews[i] = enc_seq
+            tgt_classes[i] = 1 if df.iloc[i, 1] == "positive" else 0
+            pass
+        pass
+
+        self.word2idx = self.tokenizer.word2idx
+        self.idx2word = self.tokenizer.idx2word
+        self.word2idx_size = self.tokenizer.word2idx_size
+
+        print(f"Vocab size {self.word2idx_size}")
+        torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
+
+
 
 
 
