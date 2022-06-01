@@ -1,3 +1,8 @@
+special_tokens = {
+    'tokens': {'start_token': '<sos>', 'end_token': '<eos>', 'unk_token': '<unk>', 'pad_token': '<pad>'},
+    'token_nums': {'start_token': 1, 'end_token': 2, 'unk_token': 3, 'pad_token': 0},
+}
+
 start_token = '<sos>'
 end_token = '<eos>'
 unk_token = '<unk>'
