@@ -64,7 +64,7 @@ class TestTokenizer(unittest.TestCase):
 
     def test_encode_decode_with_loaded_vocab(self):
         tokenizer = self.create_tokenizer()
-        tokenizer.load_vocab_from_file("C:/Users/Администратор/Downloads/high-frequency-vocabulary-master/20k.txt")
+        tokenizer.load_vocab_from_file("vocabs/20k.txt")
 
         some_random_string = "Hello, my name is HdsUAHUDAWYDT"
         seq = tokenizer.cleanup(data=some_random_string, tokenizer=TokenizerCollection.basic_english_by_word)
@@ -77,4 +77,17 @@ class TestTokenizer(unittest.TestCase):
     def test_load_pretrained_embedding(self):
         tokenizer = self.create_tokenizer()
         embedding_weights = tokenizer.load_pretrained_embedding("C:/Users/User/Downloads/glove.6B/glove.6B.50d.txt")
+        pass
+
+
+    def test_IMBD_dataset_usage_example(self):
+        tokenizer = self.create_tokenizer()
+        embedding_weights = tokenizer.load_pretrained_embedding("pretrained_embedding_vocab/glove.6B.50d.top30K.txt")
+        df = pandas.read_csv("data/classification/IMDB_dataset.csv")
+
+        for i in range(df.shape[0]):
+            review = df.iloc[i, 0]
+            seq = tokenizer.cleanup(data=review, tokenizer=TokenizerCollection.basic_english_by_word)
+            enc_seq = tokenizer.encode_seq(seq)
+            pass
         pass

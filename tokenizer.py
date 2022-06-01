@@ -86,10 +86,10 @@ class TokenizerLanguageModel:
         vals = list(numpy.arange(4, 4 + len(keys)))
         word2idx = dict(zip(keys, vals))
 
-        word2idx["<pad>"] = 0
-        word2idx["<sos>"] = 1
-        word2idx["<eos>"] = 2
-        word2idx["<unk>"] = 3
+        word2idx[self.pad_token] = self.pad_token_num
+        word2idx[self.start_token] = self.start_token_num
+        word2idx[self.end_token] = self.end_token_num
+        word2idx[self.unk_token] = self.unk_token_num
 
         # must pass, otherwise can cause embedding error
         assert max(word2idx.values()) < len(word2idx.values())
@@ -133,10 +133,10 @@ class TokenizerLanguageModel:
         vals = list(numpy.arange(4, 4 + len(vocab)))
         word2idx = dict(zip(vocab, vals))
 
-        word2idx["<pad>"] = 0
-        word2idx["<sos>"] = 1
-        word2idx["<eos>"] = 2
-        word2idx["<unk>"] = 3
+        word2idx[self.pad_token] = self.pad_token_num
+        word2idx[self.start_token] = self.start_token_num
+        word2idx[self.end_token] = self.end_token_num
+        word2idx[self.unk_token] = self.unk_token_num
 
         # add extra embedding vectors for every special token (fill with zeros?)
         # TODO: which weights should we use for <eos> and <unk> ???
