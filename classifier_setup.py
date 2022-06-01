@@ -1,6 +1,7 @@
 from training_setup_interface import *
 from classifier_model import *
 import pandas
+from data_loader import DatasetClassifierModel
 
 
 class ClassiferSetup(TrainingSetup):
@@ -12,6 +13,10 @@ class ClassiferSetup(TrainingSetup):
                          is_resume_mode,
                          train_params,
                          model_params)
+
+        self.num_correct_epoch = 0
+        self.num_comparisons_per_epoch = 0
+
 
     def load_data(
             self,
@@ -31,92 +36,75 @@ class ClassiferSetup(TrainingSetup):
             unk_token_num=model_constants.unk_token_num,
         )
 
-        embedding_weights = self.tokenizer.load_pretrained_embedding(
+        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
             "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
             top_n=25000
         )
-        df = pandas.read_csv("data/classification/IMDB_dataset.csv")
-
-        encoded_reviews = [0] * df.shape[0]
-        tgt_classes = [0] * df.shape[0]
-
-        for i in range(df.shape[0]):
-            review = df.iloc[i, 0]
-            seq = self.tokenizer.cleanup(data=review, tokenizer=TokenizerCollection.basic_english_by_word)
-            enc_seq = self.tokenizer.encode_seq(seq)
-            encoded_reviews[i] = enc_seq
-            tgt_classes[i] = 1 if df.iloc[i, 1] == "positive" else 0
-            pass
-        pass
 
         self.word2idx = self.tokenizer.word2idx
         self.idx2word = self.tokenizer.idx2word
         self.word2idx_size = self.tokenizer.word2idx_size
-
         print(f"Vocab size {self.word2idx_size}")
         torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
 
+        train_matrix, train_classes = self.prepare_data(train_path)
+        self.train_dataset = DatasetClassifierModel(
+            data_matrix=train_matrix,
+            tgt_classes=train_classes
+        )
+
+        val_matrix, val_classes = self.prepare_data(val_path)
+        self.val_dataset = DatasetClassifierModel(
+            data_matrix=val_matrix,
+            tgt_classes=val_classes
+        )
+
+        test_matrix, test_classes = self.prepare_data(test_path)
+        self.test_dataset = DatasetClassifierModel(
+            data_matrix=test_matrix,
+            tgt_classes=test_classes
+        )
 
 
+    # TODO: move to DataLoader ?
+    def prepare_data(self, filepath: str):
+        """
+        Input - dataframe with 2 columns (reviews and sentiment=('positive' or 'negative))
+        Output - tuple = (matrix with encoded sequences, array of classes for each sequence (int))
+        :param filepath - path to csv file
+        """
+        df = pandas.read_csv(filepath)
+        vocab = self.tokenizer.word2idx
+        max_review_len = 0
 
+        start_token = vocab[model_constants.start_token]
+        end_token = vocab[model_constants.end_token]
+        pad_token = vocab[model_constants.pad_token]
 
-        # f = open(train_path, "r", encoding="utf-8")
-        # text = f.read()
-        # text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        # # self.tokenizer.assemble_vocab(text)
-        #
-        # # self.tokenizer.load_vocab_from_file("vocabs/10k.txt")
-        # self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
-        #     "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
-        #     top_n=25000
-        # )
-        #
-        # self.word2idx = self.tokenizer.word2idx
-        # self.idx2word = self.tokenizer.idx2word
-        # self.word2idx_size = self.tokenizer.word2idx_size
-        # self.train_data = self.tokenizer.encode_seq(text)
-        # f.close()
-        #
-        # print(f"Vocab size {self.word2idx_size}")
-        #
-        # torch.save(self.word2idx, 'models/' + self.train_params.path_nm + '/vocab.pt')
-        #
-        # f = open(test_path, "r", encoding="utf-8")
-        # text = f.read()
-        # text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        # self.test_data = self.tokenizer.encode_seq(text)
-        # f.close()
-        #
-        # f = open(val_path, "r", encoding="utf-8")
-        # text = f.read()
-        # text = self.tokenizer.cleanup(data=text, tokenizer=TokenizerCollection.basic_english_by_word)
-        # self.val_data = self.tokenizer.encode_seq(text)
-        # f.close()
-        #
-        # self.train_dataset = DatasetLanguageModel(
-        #     data=self.train_data,
-        #     sequence_length=self.train_params.seq_length,
-        #     start_token=model_constants.start_token,
-        #     end_token=model_constants.end_token,
-        #     pad_token=model_constants.pad_token,
-        #     vocab=self.word2idx,
-        # )
-        # self.test_dataset = DatasetLanguageModel(
-        #     data=self.test_data,
-        #     sequence_length=self.train_params.seq_length,
-        #     start_token=model_constants.start_token,
-        #     end_token=model_constants.end_token,
-        #     pad_token=model_constants.pad_token,
-        #     vocab=self.word2idx,
-        # )
-        # self.val_dataset = DatasetLanguageModel(
-        #     data=self.val_data,
-        #     sequence_length=self.train_params.seq_length,
-        #     start_token=model_constants.start_token,
-        #     end_token=model_constants.end_token,
-        #     pad_token=model_constants.pad_token,
-        #     vocab=self.word2idx,
-        # )
+        encoded_sequences = []
+        tgt_classes = numpy.zeros(df.shape[0])
+
+        for i in range(df.shape[0]):
+            review = df.iloc[i, 0]
+            seq = self.tokenizer.cleanup(data=review, tokenizer=TokenizerCollection.basic_english_by_word)
+            if len(seq) > max_review_len:
+                max_review_len = len(seq)
+
+            enc_seq = self.tokenizer.encode_seq(seq)
+
+            # surround sequence with start, end tokens:
+            enc_seq.insert(0, start_token)
+            enc_seq.append(end_token)
+            encoded_sequences.append(numpy.array(enc_seq))       # todo: optimize this
+
+            tgt_class = 1 if df.iloc[i, 1] == "positive" else 0
+            tgt_classes[i] = tgt_class
+
+        # Create matrix filled with padding tokens:
+        data_matrix = numpy.zeros(shape=(df.shape[0], max_review_len + 2)) + pad_token      # +2 because we have sos and eos
+        for i in range(len(encoded_sequences)):
+            data_matrix[i, :len(encoded_sequences[i])] = encoded_sequences[i]
+        return data_matrix, tgt_classes
 
 
     def setup_nn(self):
@@ -150,37 +138,36 @@ class ClassiferSetup(TrainingSetup):
 
 
     def nn_forward(self, batch, print_enabled=False):
-        src = batch.to(self.device)
-        tgt_input = batch[:, :-1].to(self.device)
-        tgt_expected = batch[:, 1:].to(self.device)
+        src = batch[0].long().to(self.device)
+        tgt = batch[1].long().to(self.device)
 
-        # Get mask to mask out the next words
-        sequence_length = tgt_input.size(1)
-        tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
+        pred = self.nn_model(src)
 
-        # Standard training except we pass in y_input and tgt_mask
-        pred = self.nn_model(src, tgt_input, tgt_mask)
+        correct = pred.argmax(axis=1) == tgt
+        self.num_correct_epoch += correct.sum().item()
+        self.num_comparisons_per_epoch += correct.size(0)
 
-        # Permute pred to have batch size first again
-        pred = pred.permute(0, 2, 1)
-        tgt_expected = tgt_expected.type(torch.int64)
+        loss = self.criterion(pred, tgt)
 
-        loss = self.criterion(pred, tgt_expected)
-
-        if print_enabled:
-            # Print predicted sequence
-            predicted_sequence = self.predict(src[0:1, :], max_length=self.train_params.inference_max_len)
-
-            # TODO: move from stdout to the logger
-
-            # decode src, tgt and prediction into human-readable string
-            print("=================================================================")
-            print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
-            print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}")
-            print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}")
-            print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}")
-            print("=================================================================")
+        # if print_enabled:
+        #     # Print predicted sequence
+        #     predicted_sequence = self.predict(src[0:1, :], max_length=self.train_params.inference_max_len)
+        #
+        #     # TODO: move from stdout to the logger
+        #
+        #     # decode src, tgt and prediction into human-readable string
+        #     print("=================================================================")
+        #     print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
+        #     print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}")
+        #     print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}")
+        #     print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}")
+        #     print("=================================================================")
         return pred, loss
+
+
+    def AfterEpoch(self):
+        print (self.num_correct_epoch)
+        self.num_correct_epoch = 0
 
 
 

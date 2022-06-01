@@ -190,6 +190,8 @@ class TrainingSetup:
             train_loss = 0  # reset before each new epoch
             print(f'\n------- epoch {i_epoch} / {self.train_params.epochs - 1} -------')
 
+            self.BeforeEpoch()
+
             for batch_idx, batch in enumerate(dataloader_train):
                 if batch_idx % 1 == 0:
                     print(f"\r\t(train) batch = {batch_idx} / {len(dataloader_train)}", end='')
@@ -226,6 +228,8 @@ class TrainingSetup:
                 start_time = time.time()
                 self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/checkpoints/')
                 print(f"Saving time = {time.time() - start_time} sec")
+
+            self.AfterEpoch()
 
         dashboard.close()
 
@@ -403,3 +407,11 @@ class TrainingSetup:
         """ Alters optimizer's learning rate on the go if necessary """
         for g in self.optimizer.param_groups:
             g['lr'] = new_learning_rate
+
+    @abstractmethod
+    def BeforeEpoch(self):
+        return
+
+    @abstractmethod
+    def AfterEpoch(self):
+        return
