@@ -166,8 +166,9 @@ class ClassiferSetup(TrainingSetup):
 
 
     def AfterEpoch(self):
-        print (self.num_correct_epoch)
+        print ("num guessed correctly per epoch = ", self.num_correct_epoch, " / ", self.num_comparisons_per_epoch)
+        print ("correct ratio = ", float(self.num_correct_epoch) / self.num_comparisons_per_epoch)
         self.num_correct_epoch = 0
-
+        self.num_comparisons_per_epoch = 0
 
 

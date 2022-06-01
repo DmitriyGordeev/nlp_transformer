@@ -34,10 +34,10 @@ TransformerLanguageModelInfo = {
 
 TransformerLanguageModelTrainConfig = {
     'epochs': 100,
-    'learning_rate': 0.0000075,
+    'learning_rate': 0.00000075,
     'inference_max_len': 50,
     'grad_norm_clip': 0.0,
-    'batch_size': 4,
+    'batch_size': 64,
     'weight_decay': 0.0         # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }
 
