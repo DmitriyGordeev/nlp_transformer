@@ -1,7 +1,11 @@
-from training_setup_interface import *
+from transformer_utils.training_setup_abstract import *
+from transformer_utils.tokenizer import *
+import transformer_utils.model_constants as model_constants
+from transformer_utils.data_loader import DatasetClassifierModel
+
 from classifier_model import *
 import pandas
-from data_loader import DatasetClassifierModel
+
 
 
 class ClassiferSetup(TrainingSetup):
@@ -114,16 +118,6 @@ class ClassiferSetup(TrainingSetup):
                                                    num_encoder_layers=self.model_params.num_encoder_layers,
                                                    dim_feedforward=self.model_params.dim_feedforward,
                                                    dropout_p=self.model_params.dropout_p)
-
-        # self.nn_model = model.TransformerLanguageModel(
-        #     num_tokens=self.word2idx_size,
-        #     d_model=self.model_params.d_model,
-        #     nhead=self.model_params.nhead,
-        #     num_encoder_layers=self.model_params.num_encoder_layers,
-        #     num_decoder_layers=self.model_params.num_decoder_layers,
-        #     dim_feedforward=self.model_params.dim_feedforward,
-        #     dropout_p=self.model_params.dropout_p,
-        # )
 
 
     def setup_optimizers(self):

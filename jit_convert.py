@@ -1,6 +1,6 @@
 import torch
-from tokenizer import TokenizerLanguageModel, TokenizerCollection
-import model_constants
+from transformer_utils.tokenizer import TokenizerLanguageModel, TokenizerCollection
+import transformer_utils.model_constants as model_constants
 
 
 def get_tgt_mask(size) -> torch.tensor:

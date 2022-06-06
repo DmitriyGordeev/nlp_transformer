@@ -1,4 +1,4 @@
-from training_setup import *
+from langmodel_setup import *
 from pathlib import Path
 from model_config import save_model_config
 

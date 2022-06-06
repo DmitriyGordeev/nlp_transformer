@@ -1,6 +1,6 @@
 import torch
-from tokenizer import TokenizerLanguageModel, TokenizerCollection
-import model_constants
+from transformer_utils.tokenizer import TokenizerLanguageModel, TokenizerCollection
+import transformer_utils.model_constants as model_constants
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
