@@ -1,12 +1,16 @@
-from classifier_setup import *
-from langmodel_setup import *
+# from classifier_setup import *
+# from langmodel_setup import *
+from summarizer_setup import *
 from pathlib import Path
-from model_config import TransformerLanguageModelInfo as tlm_info
-from model_config import TransformerLanguageModelConfig as tlm_conf
-from model_config import TransformerLanguageModelDataConfig as tlm_data
-from model_config import TransformerLanguageModelTrainConfig as tlm_train
-from model_config import save_model_config
 
+# TODO: make single model config file for all models (?)
+from summarizer_model_config import TransformerSummarizerModelInfo as tlm_info
+from summarizer_model_config import TransformerSummarizerModelConfig as tlm_conf
+from summarizer_model_config import TransformerSummarizerModelDataConfig as tlm_data
+from summarizer_model_config import TransformerSummarizerModelTrainConfig as tlm_train
+from summarizer_model_config import save_model_config
+
+# from summarizer_model_config import *
 
 if __name__ == "__main__":
     Path('models').mkdir(parents=True, exist_ok=True)
@@ -29,22 +33,36 @@ if __name__ == "__main__":
                                grad_norm_clip=tlm_train['grad_norm_clip'],
                                batch_size=tlm_train['batch_size'],
                                weight_decay=tlm_train['weight_decay'],
-                               seq_length=tlm_data['seq_length'],
+                               seq_length=-1,
                                path_nm=tlm_info['name'])
 
-    TS = ClassiferSetup(is_gpu=True,
-                        is_resume_mode=False,
-                        train_params=train_params,
-                        model_params=model_params)
+    TS = SummarizerSetup(is_gpu=True,
+                         is_resume_mode=False,
+                         train_params=train_params,
+                         model_params=model_params)
 
     TS.load_data(
-        train_path="data/classification/train.csv",
-        val_path="data/classification/val.csv",
-        test_path="data/classification/test.csv",
+        train_path="data/summarizer_billsum_v3/us_train_data_final_OFFICIAL.jsonl",
+        val_path="data/summarizer_billsum_v3/us_test_data_final_OFFICIAL.jsonl",
+        test_path="data/summarizer_billsum_v3/ca_test_data_final_OFFICIAL.jsonl",
     )
 
     TS.run()
 
+
+
+    # TS = ClassiferSetup(is_gpu=True,
+    #                     is_resume_mode=False,
+    #                     train_params=train_params,
+    #                     model_params=model_params)
+    #
+    # TS.load_data(
+    #     train_path="data/classification/train.csv",
+    #     val_path="data/classification/val.csv",
+    #     test_path="data/classification/test.csv",
+    # )
+    #
+    # TS.run()
 
     # TS = LangModelSetup(
     #     is_gpu=True,
@@ -60,7 +78,6 @@ if __name__ == "__main__":
     # )
     #
     # TS.run()
-
 
     # TS = TrainingSetup(
     #     is_gpu=True,

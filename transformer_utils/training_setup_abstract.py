@@ -6,8 +6,7 @@ import glob
 import os
 import time
 import matplotlib.pyplot as plot
-from . import model
-from model_constants import *
+from . import model_constants
 from abc import abstractmethod
 
 
@@ -306,7 +305,7 @@ class TrainingSetup:
     def predict(self, input_sequence, max_length=10):
         """ Infer sequence from input_sequence """
         self.nn_model.eval()
-        y_input = torch.tensor([[special_tokens['token_nums']['start_token']]],
+        y_input = torch.tensor([[model_constants.special_tokens['token_nums']['start_token']]],
                                dtype=torch.long,
                                device=self.device)
 
@@ -323,7 +322,7 @@ class TrainingSetup:
             y_input = torch.cat((y_input, next_item), dim=1)
 
             # Stop if model predicts end of sentence
-            if next_item.view(-1).item() == special_tokens['token_nums']['end_token']:
+            if next_item.view(-1).item() == model_constants.special_tokens['token_nums']['end_token']:
                 break
 
         return y_input.view(-1).tolist()

@@ -14,11 +14,11 @@ class NpEncoder(json.JSONEncoder):
 
 
 TransformerSummarizerModelConfig = {
-    'd_model': 64,
-    'nhead': 16,
-    'num_encoder_layers': 3,
-    'num_decoder_layers': 3,
-    'dim_feedforward': 1024,
+    'd_model': 32,
+    'nhead': 1,
+    'num_encoder_layers': 1,
+    'num_decoder_layers': 1,
+    'dim_feedforward': 32,
     'dropout_p': 0.1,
 }
 
@@ -47,12 +47,12 @@ def save_model_config(directory, dict_param=None):
     """ Saves all settings to model_config.json file """
     json_dict = dict()
     if dict_param is None:      # manual
-        json_dict["langModel"] = TransformerSummarizerModelConfig
+        json_dict["summarizerModel"] = TransformerSummarizerModelConfig
         json_dict["data"] = TransformerSummarizerModelDataConfig
         json_dict["info"] = TransformerSummarizerModelInfo
         json_dict["train"] = TransformerSummarizerModelTrainConfig
     else:       # automatic
-        json_dict["langModel"] = dict_param['TransformerSummarizerModelConfig']
+        json_dict["summarizerModel"] = dict_param['TransformerSummarizerModelConfig']
         json_dict["data"] = dict_param['TransformerSummarizerModelDataConfig']
         json_dict["info"] = dict_param['TransformerSummarizerModelInfo']
         json_dict["train"] = dict_param['TransformerSummarizerModelTrainConfig']

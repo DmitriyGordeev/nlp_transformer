@@ -1,20 +1,15 @@
 import torch
-import glob
+import torch.nn as nn
+import torch.optim as top
 import matplotlib
-import numpy as np
-import random
+import jsonlines
 
 from transformer_utils import training_setup_abstract
 from transformer_utils import model
 from transformer_utils.tokenizer import TokenizerLanguageModel, TokenizerCollection
 
-# TODO: change usage of ModelConfig
-from summarizer_model_config import TransformerSummarizerModelConfig as tlm_conf
-from summarizer_model_config import TransformerSummarizerModelDataConfig as tlm_data
-from summarizer_model_config import TransformerSummarizerModelInfo as tlm_info
-
 from transformer_utils.model_constants import *
-from transformer_utils.data_loader import DatasetSummarizerModel
+from transformer_utils.data_loader import DatasetSummarizerBillSumv3
 
 matplotlib.use("Agg")
 
@@ -27,106 +22,138 @@ class TrainParams(training_setup_abstract.TrainParams):
     pass
 
 
-class TrainingSetup(training_setup_abstract.TrainingSetup):
+class SummarizerSetup(training_setup_abstract.TrainingSetup):
 
-    @staticmethod
-    def read_files(src_dir: str, tgt_dir: str):
+    # @staticmethod
+    # def read_files(src_dir: str, tgt_dir: str):
+    #
+    #     # src_path_list = glob.glob('data/src/*.txt')
+    #     src_path_list = glob.glob(src_dir + "/*.txt")
+    #     src_list = []
+    #     for el in src_path_list:
+    #         f = open(el, 'r', encoding='utf-8')
+    #         text = f.read()
+    #         src_list.append(text)
+    #         f.close()
+    #
+    #     # tgt_path_list = glob.glob('data/tgt/*.txt')
+    #     tgt_path_list = glob.glob(tgt_dir + '/*.txt')
+    #     tgt_list = []
+    #     for el in tgt_path_list:
+    #         f = open(el, 'r', encoding='utf-8')
+    #         text = f.read()
+    #         tgt_list.append(text)
+    #         f.close()
+    #
+    #     if len(src_list) != len(tgt_list):
+    #         raise RuntimeError('the number of src samples is not equal to the number of tgt samples')
+    #
+    #     return src_list, tgt_list
+    #
+    # @staticmethod
+    # def train_val_test_split(
+    #         src: list,
+    #         tgt: list,
+    #         ratio=(7, 2, 1),
+    # ):
+    #     seq_len = len(src)
+    #     weight = []
+    #     s = 0
+    #     for el in (7, 2, 1):
+    #         if el < 0:
+    #             raise ValueError('ratio elements must be >= 0')
+    #         s += el
+    #         weight.append(s)
+    #     weight = [int(w * seq_len / s) for w in weight]
+    #
+    #     idx = np.arange(seq_len)
+    #     random.shuffle(idx)
+    #
+    #     train_idx = idx[:weight[0]]
+    #     val_idx = idx[weight[0]:weight[1]]
+    #     test_idx = idx[weight[1]:]
+    #
+    #     train_src = [src[i] for i in train_idx]
+    #     val_src = [src[i] for i in val_idx]
+    #     test_src = [src[i] for i in test_idx]
+    #
+    #     train_tgt = [tgt[i] for i in train_idx]
+    #     val_tgt = [tgt[i] for i in val_idx]
+    #     test_tgt = [tgt[i] for i in test_idx]
+    #
+    #     src_out = [train_src, val_src, test_src]
+    #     tgt_out = [train_tgt, val_tgt, test_tgt]
+    #
+    #     return src_out, tgt_out
+    #
+    # def data_cleanup(
+    #         self,
+    #         src,
+    #         tgt,
+    #         tokenizer,
+    # ):
+    #     src_out = []
+    #     tgt_out = []
+    #
+    #     src_max_len = -1
+    #     tgt_max_len = -1
+    #
+    #     for i in range(len(src)):
+    #         src_out_i = []
+    #         tgt_out_i = []
+    #
+    #         for j in range(len(src[i])):
+    #             src_out_i.append(self.tokenizer.cleanup(src[i][j], tokenizer))
+    #             tgt_out_i.append(self.tokenizer.cleanup(tgt[i][j], tokenizer))
+    #
+    #             src_max_len = max(src_max_len, len(src_out_i[-1]))
+    #             tgt_max_len = max(tgt_max_len, len(tgt_out_i[-1]))
+    #
+    #         src_out.append(src_out_i)
+    #         tgt_out.append(tgt_out_i)
+    #
+    #     words = []
+    #     for i in range(len(src_out[0])):
+    #         for el in src_out[0][i]:
+    #             words.append(el)
+    #
+    #     for i in range(len(tgt_out[0])):
+    #         for el in tgt_out[0][i]:
+    #             words.append(el)
+    #
+    #     return src_out, tgt_out, words, src_max_len, tgt_max_len
 
-        # src_path_list = glob.glob('data/src/*.txt')
-        src_path_list = glob.glob(src_dir + "/*.txt")
-        src_list = []
-        for el in src_path_list:
-            f = open(el, 'r', encoding='utf-8')
-            text = f.read()
-            src_list.append(text)
-            f.close()
+    def load_billsumv3(self, filepath: str) -> tuple:
+        """ :param filepath - path to *.jsonl from BillSumv3 dataset
+            :return list of tuples (text, summary) which are encoded with tokenizer already
+        """
+        data_tuples = []
+        max_text_len = 0
+        max_summary_len = 0
+        with jsonlines.open(filepath) as f:
+            print(f"Encoding text and summary strings ...")
+            for line in f.iter():
+                text = line['text']
+                summary = line['summary']
+                title = line['title']
 
-        # tgt_path_list = glob.glob('data/tgt/*.txt')
-        tgt_path_list = glob.glob(tgt_dir + '/*.txt')
-        tgt_list = []
-        for el in tgt_path_list:
-            f = open(el, 'r', encoding='utf-8')
-            text = f.read()
-            tgt_list.append(text)
-            f.close()
+                # encode text
+                text = self.tokenizer.cleanup(text, tokenizer=TokenizerCollection.basic_english_by_word)
+                text = self.tokenizer.encode_seq(text)
 
-        if len(src_list) != len(tgt_list):
-            raise RuntimeError('the number of src samples is not equal to the number of tgt samples')
+                # encode summary
+                summary = self.tokenizer.cleanup(summary, tokenizer=TokenizerCollection.basic_english_by_word)
+                summary = self.tokenizer.encode_seq(summary)
 
-        return src_list, tgt_list
+                # data_tuples will be passed to the Dataset
+                data_tuples.append((text, summary))
+                if max_text_len < len(text):
+                    max_text_len = len(text)
+                if max_summary_len < len(summary):
+                    max_summary_len = len(summary)
 
-    @staticmethod
-    def train_val_test_split(
-            src: list,
-            tgt: list,
-            ratio=(7, 2, 1),
-    ):
-        seq_len = len(src)
-        weight = []
-        s = 0
-        for el in (7, 2, 1):
-            if el < 0:
-                raise ValueError('ratio elements must be >= 0')
-            s += el
-            weight.append(s)
-        weight = [int(w * seq_len / s) for w in weight]
+        return data_tuples, max_text_len, max_summary_len
 
-        idx = np.arange(seq_len)
-        random.shuffle(idx)
-
-        train_idx = idx[:weight[0]]
-        val_idx = idx[weight[0]:weight[1]]
-        test_idx = idx[weight[1]:]
-
-        train_src = [src[i] for i in train_idx]
-        val_src = [src[i] for i in val_idx]
-        test_src = [src[i] for i in test_idx]
-
-        train_tgt = [tgt[i] for i in train_idx]
-        val_tgt = [tgt[i] for i in val_idx]
-        test_tgt = [tgt[i] for i in test_idx]
-
-        src_out = [train_src, val_src, test_src]
-        tgt_out = [train_tgt, val_tgt, test_tgt]
-
-        return src_out, tgt_out
-
-    def data_cleanup(
-            self,
-            src,
-            tgt,
-            tokenizer,
-    ):
-        src_out = []
-        tgt_out = []
-
-        src_max_len = -1
-        tgt_max_len = -1
-
-        for i in range(len(src)):
-            src_out_i = []
-            tgt_out_i = []
-
-            for j in range(len(src[i])):
-                src_out_i.append(self.tokenizer.cleanup(src[i][j], tokenizer))
-                tgt_out_i.append(self.tokenizer.cleanup(tgt[i][j], tokenizer))
-
-                src_max_len = max(src_max_len, len(src_out_i[-1]))
-                tgt_max_len = max(tgt_max_len, len(tgt_out_i[-1]))
-
-            src_out.append(src_out_i)
-            tgt_out.append(tgt_out_i)
-
-        words = []
-        for i in range(len(src_out[0])):
-            for el in src_out[0][i]:
-                words.append(el)
-
-        for i in range(len(tgt_out[0])):
-            for el in tgt_out[0][i]:
-                words.append(el)
-
-        return src_out, tgt_out, words, src_max_len, tgt_max_len
 
     def load_data(
             self,
@@ -146,54 +173,54 @@ class TrainingSetup(training_setup_abstract.TrainingSetup):
             unk_token_num=special_tokens['token_nums']['unk_token'],
         )
 
-        src_text, tgt_text = self.read_files()
-        src_sample, tgt_sample = self.train_val_test_split(src_text, tgt_text)
-        src_seq, tgt_seq, words, self.src_max_len, self.tgt_max_len = self.data_cleanup(src_sample, tgt_sample,
-                                                                                        TokenizerCollection.basic_english_by_word)
-
-        self.tokenizer.assemble_vocab(words)
+        # load glove embedding from file
+        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
+            "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
+            top_n=25000
+        )
         self.word2idx = self.tokenizer.word2idx
         self.idx2word = self.tokenizer.idx2word
         self.word2idx_size = self.tokenizer.word2idx_size
 
-        torch.save(self.word2idx, 'models/' + tlm_info['name'] + '/vocab.pt')
+        # Reading BillSumV3 dataset
 
-        self.train_data = [[self.tokenizer.encode_seq(seq) for seq in src_seq[0]],
-                           [self.tokenizer.encode_seq(seq) for seq in tgt_seq[0]]]
-        self.val_data = [[self.tokenizer.encode_seq(seq) for seq in src_seq[1]],
-                         [self.tokenizer.encode_seq(seq) for seq in tgt_seq[1]]]
-        self.test_data = [[self.tokenizer.encode_seq(seq) for seq in src_seq[2]],
-                          [self.tokenizer.encode_seq(seq) for seq in tgt_seq[2]]]
+        # Train file -> train dataset
+        train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
+        print(f"num train pairs (text,summary) = {len(train_tuples)}")
+        self.train_dataset = DatasetSummarizerBillSumv3(train_tuples,
+                                                        max_text_len,
+                                                        max_summary_len,
+                                                        start_token=start_token,
+                                                        end_token=end_token,
+                                                        pad_token=pad_token,
+                                                        vocab=self.word2idx)
+        del train_tuples  # cleanup memory
 
-        self.train_dataset = DatasetSummarizerModel(
-            data=self.train_data,
-            src_max_len=self.src_max_len,
-            tgt_max_len=self.tgt_max_len,
-            start_token=special_tokens['tokens']['start_token'],
-            end_token=special_tokens['tokens']['end_token'],
-            pad_token=special_tokens['tokens']['pad_token'],
-            vocab=self.word2idx,
-        )
 
-        self.val_dataset = DatasetSummarizerModel(
-            data=self.val_data,
-            src_max_len=self.src_max_len,
-            tgt_max_len=self.tgt_max_len,
-            start_token=special_tokens['tokens']['start_token'],
-            end_token=special_tokens['tokens']['end_token'],
-            pad_token=special_tokens['tokens']['pad_token'],
-            vocab=self.word2idx,
-        )
+        # Validation file -> validation dataset
+        val_tuples = self.load_billsumv3(val_path)
+        print(f"num val pairs (text,summary) = {len(val_tuples)}")
+        self.val_dataset = DatasetSummarizerBillSumv3(val_tuples,
+                                                      max_text_len,
+                                                      max_summary_len,
+                                                      start_token=start_token,
+                                                      end_token=end_token,
+                                                      pad_token=pad_token,
+                                                      vocab=self.word2idx)
+        del val_tuples  # cleanup memory
 
-        self.test_dataset = DatasetSummarizerModel(
-            data=self.test_data,
-            src_max_len=self.src_max_len,
-            tgt_max_len=self.tgt_max_len,
-            start_token=special_tokens['tokens']['start_token'],
-            end_token=special_tokens['tokens']['end_token'],
-            pad_token=special_tokens['tokens']['pad_token'],
-            vocab=self.word2idx,
-        )
+
+        # Test file -> test dataset
+        test_tuples = self.load_billsumv3(test_path)
+        print(f"num test pairs (text,summary) = {len(test_tuples)}")
+        self.test_dataset = DatasetSummarizerBillSumv3(test_tuples,
+                                                       max_text_len,
+                                                       max_summary_len,
+                                                       start_token=start_token,
+                                                       end_token=end_token,
+                                                       pad_token=pad_token,
+                                                       vocab=self.word2idx)
+        del test_tuples  # cleanup memory
 
 
     def setup_nn(self):
@@ -279,3 +306,13 @@ class TrainingSetup(training_setup_abstract.TrainingSetup):
 
         return y_input.view(-1).tolist()
 
+
+    def setup_optimizers(self):
+        self.optimizer = top.Adam(self.nn_model.parameters(),
+                                  lr=self.train_params.learning_rate,
+                                  weight_decay=self.train_params.weight_decay)
+        self.criterion = nn.CrossEntropyLoss()
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
+                                                                    patience=5,
+                                                                    threshold=0.001,
+                                                                    factor=0.5)
