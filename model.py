@@ -1,8 +1,6 @@
 import math
-
 import torch
 import torch.nn as nn
-
 from pos_encoding import PositionalEncoding
 
 

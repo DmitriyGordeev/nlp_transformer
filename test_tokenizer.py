@@ -1,5 +1,7 @@
 import unittest
 import numpy
+from webencodings import encode
+
 import model_constants
 from tokenizer import TokenizerLanguageModel, TokenizerCollection
 import pandas
@@ -64,7 +66,7 @@ class TestTokenizer(unittest.TestCase):
 
     def test_encode_decode_with_loaded_vocab(self):
         tokenizer = self.create_tokenizer()
-        tokenizer.load_vocab_from_file("C:/Users/Администратор/Downloads/high-frequency-vocabulary-master/20k.txt")
+        tokenizer.load_vocab_from_file("vocabs/20k.txt")
 
         some_random_string = "Hello, my name is HdsUAHUDAWYDT"
         seq = tokenizer.cleanup(data=some_random_string, tokenizer=TokenizerCollection.basic_english_by_word)
@@ -78,3 +80,43 @@ class TestTokenizer(unittest.TestCase):
         tokenizer = self.create_tokenizer()
         embedding_weights = tokenizer.load_pretrained_embedding("C:/Users/User/Downloads/glove.6B/glove.6B.50d.txt")
         pass
+
+
+    def test_IMBD_dataset_usage_example(self):
+        """ This is for classification dataset """
+        tokenizer = self.create_tokenizer()
+        embedding_weights = tokenizer.load_pretrained_embedding("pretrained_embedding_vocab/glove.6B.50d.top30K.txt")
+        df = pandas.read_csv("data/classification/IMDB_dataset.csv")
+
+        vocab = tokenizer.word2idx
+
+        # encoded_reviews = [0] * df.shape[0]
+        # tgt_classes = [0] * df.shape[0]
+
+        max_review_len = 0
+
+        start_token = vocab[model_constants.start_token]
+        end_token   = vocab[model_constants.end_token]
+        pad_token   = vocab[model_constants.pad_token]
+        unk_token   = vocab[model_constants.unk_token]
+
+        for i in range(df.shape[0]):
+            review = df.iloc[i, 0]
+            seq = tokenizer.cleanup(data=review, tokenizer=TokenizerCollection.basic_english_by_word)
+            if len(seq) > max_review_len:
+                max_review_len = len(seq)
+
+            enc_seq = tokenizer.encode_seq(seq)
+
+            # surround sequence with start, end tokens:
+            enc_seq.insert(0, start_token)
+            enc_seq.append(end_token)
+
+            tgt_class = 1 if df.iloc[i, 1] == "positive" else 0
+            pass
+
+        # Create matrix filled with padding tokens:
+        data = [0] * df.shape[0]  # this will be a list of tuples (encoded_review, 0 or 1)
+        data_matrix = numpy.zeros(shape=(df.shape[0], max_review_len)) + pad_token
+
+

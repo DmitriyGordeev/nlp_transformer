@@ -14,10 +14,10 @@ class NpEncoder(json.JSONEncoder):
 
 TransformerLanguageModelConfig = {
     'd_model': 50,
-    'nhead': 10,
-    'num_encoder_layers': 8,
-    'num_decoder_layers': 8,
-    'dim_feedforward': 8096,
+    'nhead': 2,
+    'num_encoder_layers': 1,
+    'num_decoder_layers': 1,
+    'dim_feedforward': 8,
     'dropout_p': 0.1,
 }
 
@@ -34,10 +34,10 @@ TransformerLanguageModelInfo = {
 
 TransformerLanguageModelTrainConfig = {
     'epochs': 100,
-    'learning_rate': 0.0000075,
+    'learning_rate': 0.00000075,
     'inference_max_len': 50,
     'grad_norm_clip': 0.0,
-    'batch_size': 48,
+    'batch_size': 64,
     'weight_decay': 0.0         # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }
 

@@ -1,4 +1,4 @@
-from langmodel_setup import *
+from classifier_setup import *
 from pathlib import Path
 from model_config import TransformerLanguageModelInfo as tlm_info
 from model_config import TransformerLanguageModelConfig as tlm_conf
@@ -30,23 +30,34 @@ if __name__ == "__main__":
                                seq_length=tlm_data['seq_length'],
                                path_nm=tlm_info['name'])
 
-    TS = LangModelSetup(
-        is_gpu=True,
-        is_resume_mode=True,
-        train_params=train_params,
-        model_params=model_params,
-    )
+    TS = ClassiferSetup(is_gpu=True,
+                        is_resume_mode=False,
+                        train_params=train_params,
+                        model_params=model_params)
 
     TS.load_data(
-        train_path=tlm_data['train_path'],
-        test_path=tlm_data['test_path'],
-        val_path=tlm_data['val_path'],
+        train_path="data/classification/train.csv",
+        val_path="data/classification/val.csv",
+        test_path="data/classification/test.csv",
     )
 
     TS.run()
 
 
-
+    # TS = LangModelSetup(
+    #     is_gpu=True,
+    #     is_resume_mode=True,
+    #     train_params=train_params,
+    #     model_params=model_params,
+    # )
+    #
+    # TS.load_data(
+    #     train_path=tlm_data['train_path'],
+    #     test_path=tlm_data['test_path'],
+    #     val_path=tlm_data['val_path'],
+    # )
+    #
+    # TS.run()
 
     # TS = TrainingSetup(
     #     is_gpu=True,
