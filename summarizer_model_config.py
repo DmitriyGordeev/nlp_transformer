@@ -14,7 +14,7 @@ class NpEncoder(json.JSONEncoder):
 
 
 TransformerSummarizerModelConfig = {
-    'd_model': 32,
+    'd_model': 50,
     'nhead': 1,
     'num_encoder_layers': 1,
     'num_decoder_layers': 1,
@@ -34,11 +34,11 @@ TransformerSummarizerModelInfo = {
 
 
 TransformerSummarizerModelTrainConfig = {
-    'epochs': 30,
-    'learning_rate': 0.001,
-    'inference_max_len': 10,
+    'epochs': 50,
+    'learning_rate': 0.0001,
+    'inference_max_len': 100,
     'grad_norm_clip': 0.0,
-    'batch_size': 2,
+    'batch_size': 12,
     'weight_decay': 0.0,        # L2 norm coeff: the bigger -> the less overfitting but the slower training
 }
 

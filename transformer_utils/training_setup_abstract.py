@@ -8,6 +8,7 @@ import time
 import matplotlib.pyplot as plot
 from . import model_constants
 from abc import abstractmethod
+import random
 
 
 class ModelParams:
@@ -77,6 +78,9 @@ class TrainingSetup:
         self.train_data = None
         self.val_data = None
         self.test_data = None
+
+        self.resampling_portion = 0.1   # e.g. 0.1 is 10% of the data
+        self.resampling_freq_epochs = 10    # resampling will occur after number of epochs specified here
 
         self.train_dataset = None
         self.test_dataset = None
@@ -174,18 +178,18 @@ class TrainingSetup:
         else:
             print("training from scratch")
 
-        dataloader_train = DataLoader(
-                                    dataset=self.train_dataset,
-                                    batch_size=self.train_params.batch_size,
-                                    shuffle=True,
-                                    )
-                
+        dataloader_train = self.resampling()
+
         for i_epoch in range(start_epoch, self.train_params.epochs):
 
             train_loss = 0      # reset before each new epoch
             print(f'\n------- epoch {i_epoch} / {self.train_params.epochs - 1} -------')
 
             self.BeforeEpoch()
+
+            if i_epoch > 0 and i_epoch % self.resampling_freq_epochs == 0:
+                print (f"resampling ...")
+                dataloader_train = self.resampling()
 
             for batch_idx, batch in enumerate(dataloader_train):
 
@@ -241,7 +245,7 @@ class TrainingSetup:
         with torch.no_grad():
             val_loss = 0
             for batch_index, batch in enumerate(dataloader_val):
-                __, loss = self.nn_forward(batch, print_enabled=False)
+                __, loss = self.nn_forward(batch, print_enabled=(batch_index == 0))
                 val_loss += loss.item()
 
                 if batch_index % 1 == 0:
@@ -426,3 +430,15 @@ class TrainingSetup:
     @abstractmethod
     def AfterEpoch(self):
         return
+
+
+    def resampling(self):
+        """ Should create and return DataLoader instance
+        Can be overriden to resample data according to Child's class rules
+        By default simply passes self.train_dataset into DataLoader instance: """
+        return DataLoader(
+                            dataset=self.train_dataset,
+                            batch_size=self.train_params.batch_size,
+                            shuffle=True,
+                        )
+

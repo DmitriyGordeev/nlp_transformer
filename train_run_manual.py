@@ -37,7 +37,7 @@ if __name__ == "__main__":
                                path_nm=tlm_info['name'])
 
     TS = SummarizerSetup(is_gpu=True,
-                         is_resume_mode=False,
+                         is_resume_mode=True,
                          train_params=train_params,
                          model_params=model_params)
 

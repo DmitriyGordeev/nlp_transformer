@@ -4,6 +4,7 @@ import torch.optim as top
 import matplotlib
 import jsonlines
 
+
 from transformer_utils import training_setup_abstract
 from transformer_utils import model
 from transformer_utils.tokenizer import TokenizerLanguageModel, TokenizerCollection
@@ -12,6 +13,9 @@ from transformer_utils.model_constants import *
 from transformer_utils.data_loader import DatasetSummarizerBillSumv3
 
 matplotlib.use("Agg")
+
+import os
+import random
 
 
 class ModelParams(training_setup_abstract.ModelParams):
@@ -173,6 +177,10 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             unk_token_num=special_tokens['token_nums']['unk_token'],
         )
 
+        # TODO: expose these parameters to model_config
+        self.resampling_portion = 0.1
+        self.resampling_freq_epochs = 2
+
         # load glove embedding from file
         self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
             "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
@@ -184,21 +192,38 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
 
         # Reading BillSumV3 dataset
 
-        # Train file -> train dataset
-        train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
+        train_tuples = None
+        max_text_len = None
+        max_summary_len = None
+
+        # Train file -> self.train_data as tuple (array, max_text_len, max_summary_len)
+        if os.path.isfile("cached_data_train.pt"):      # load cached data to avoid encoding again
+            train_tuples, max_text_len, max_summary_len = torch.load("cached_data_train.pt")
+            print (f"loaded cached train data, "
+                   f"len(train_tuples) = {len(train_tuples)}, "
+                   f"max_text_len = {max_text_len}, "
+                   f"max_summary_len = {max_summary_len}")
+        else:
+            train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
+            torch.save((train_tuples, max_text_len, max_summary_len), "cached_data_train.pt")
+
         print(f"num train pairs (text,summary) = {len(train_tuples)}")
-        self.train_dataset = DatasetSummarizerBillSumv3(train_tuples,
-                                                        max_text_len,
-                                                        max_summary_len,
-                                                        start_token=start_token,
-                                                        end_token=end_token,
-                                                        pad_token=pad_token,
-                                                        vocab=self.word2idx)
+        self.train_data = (train_tuples, max_text_len, max_summary_len)
         del train_tuples  # cleanup memory
 
 
-        # Validation file -> validation dataset
-        val_tuples = self.load_billsumv3(val_path)
+        # Validation file -> self.val_data as tuple (array, max_text_len, max_summary_len)
+        val_tuples = None
+        if os.path.isfile("cached_data_val.pt"):      # load cached data to avoid encoding again
+            val_tuples, max_text_len, max_summary_len = torch.load("cached_data_val.pt")
+            print(f"loaded cached validation data, "
+                  f"len(val_tuples) = {len(val_tuples)}, "
+                  f"max_text_len = {max_text_len}, "
+                  f"max_summary_len = {max_summary_len}")
+        else:
+            val_tuples, max_text_len, max_summary_len = self.load_billsumv3(val_path)
+            torch.save((val_tuples, max_text_len, max_summary_len), "cached_data_val.pt")
+
         print(f"num val pairs (text,summary) = {len(val_tuples)}")
         self.val_dataset = DatasetSummarizerBillSumv3(val_tuples,
                                                       max_text_len,
@@ -211,7 +236,18 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
 
 
         # Test file -> test dataset
-        test_tuples = self.load_billsumv3(test_path)
+        test_tuples = None
+        if os.path.isfile("cached_data_test.pt"):      # load cached data to avoid encoding again
+            test_tuples, max_text_len, max_summary_len = torch.load("cached_data_test.pt")
+            print(f"loaded cached test data, "
+                  f"len(test_tuples) = {len(test_tuples)}, "
+                  f"max_text_len = {max_text_len}, "
+                  f"max_summary_len = {max_summary_len}")
+        else:
+            test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
+            torch.save((test_tuples, max_text_len, max_summary_len), "cached_data_test.pt")
+
+        # test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
         print(f"num test pairs (text,summary) = {len(test_tuples)}")
         self.test_dataset = DatasetSummarizerBillSumv3(test_tuples,
                                                        max_text_len,
@@ -221,6 +257,9 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                                                        pad_token=pad_token,
                                                        vocab=self.word2idx)
         del test_tuples  # cleanup memory
+
+
+
 
 
     def setup_nn(self):
@@ -286,7 +325,7 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
     def predict(self, input_sequence, max_length=10):
         """ Infer sequence from input_sequence """
         self.nn_model.eval()
-        y_input = torch.tensor([[special_tokens.start_token_num]], dtype=torch.long, device=self.device)
+        y_input = torch.tensor([[start_token_num]], dtype=torch.long, device=self.device)
 
         for _ in range(max_length):
             # Get source mask
@@ -301,7 +340,7 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             y_input = torch.cat((y_input, next_item), dim=1)
 
             # Stop if model predicts end of sentence
-            if next_item.view(-1).item() == special_tokens.end_token_num:
+            if next_item.view(-1).item() == end_token_num:
                 break
 
         return y_input.view(-1).tolist()
@@ -316,3 +355,23 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                                                                     patience=5,
                                                                     threshold=0.001,
                                                                     factor=0.5)
+
+
+    def resampling(self):
+        """ Overriding method from the parent class """
+        if 0 < self.resampling_portion < 1:
+            full_data_size = len(self.train_data[0])
+
+            # how much data should be in a resampled chunk
+            n_how_much = int(full_data_size * self.resampling_portion)
+            subsample = random.sample(self.train_data[0], n_how_much)
+
+            self.train_dataset = DatasetSummarizerBillSumv3(subsample,
+                                                            src_max_len=self.train_data[1],
+                                                            tgt_max_len=self.train_data[2],
+                                                            start_token=start_token,
+                                                            end_token=end_token,
+                                                            pad_token=pad_token,
+                                                            vocab=self.word2idx)
+        return super(SummarizerSetup, self).resampling()
+
