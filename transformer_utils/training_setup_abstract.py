@@ -9,6 +9,7 @@ import matplotlib.pyplot as plot
 from . import model_constants
 from abc import abstractmethod
 import random
+from torch.utils.tensorboard import SummaryWriter
 
 
 class ModelParams:
@@ -79,7 +80,7 @@ class TrainingSetup:
         self.val_data = None
         self.test_data = None
 
-        self.resampling_portion = 0.1   # e.g. 0.1 is 10% of the data
+        self.resampling_portion = 1.0   # e.g. 0.1 is 10% of the data
         self.resampling_freq_epochs = 10    # resampling will occur after number of epochs specified here
 
         self.train_dataset = None
@@ -166,7 +167,7 @@ class TrainingSetup:
 
     def train(self):
 
-        # dashboard = SummaryWriter()
+        dashboard = SummaryWriter()
 
         start_epoch = 0
 
@@ -218,7 +219,7 @@ class TrainingSetup:
 
             val_loss = self.validate(i_epoch)
 
-            # dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
+            dashboard.add_scalars('loss', {'train': self.recorded_train_loss[-1], 'val': self.recorded_val_loss[-1]}, i_epoch)
 
             self.scheduler.step(val_loss)
 
@@ -226,14 +227,14 @@ class TrainingSetup:
 
             # Saving training snapshot every 20 epochs
             # snapshot = (epoch + model's params + optimizer + scheduler)
-            if i_epoch % 5 == 0:
+            if i_epoch % 1 == 0:
                 start_time = time.time()
                 self.save_checkpoint(i_epoch, 'models/' + self.train_params.path_nm + '/checkpoints/')
                 print (f"Saving time = {time.time() - start_time} sec")
 
             self.AfterEpoch()
 
-        # dashboard.close()
+        dashboard.close()
 
 
     def validate(self, i_epoch):

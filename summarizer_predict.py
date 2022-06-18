@@ -14,14 +14,14 @@ def predict(
 ):
     """ Infer sequence from input_sequence """
     tokenizer = TokenizerLanguageModel(
-        pad_token=special_tokens.pad_token,
-        start_token=special_tokens.start_token,
-        end_token=special_tokens.end_token,
-        unk_token=special_tokens.unk_token,
-        pad_token_num=special_tokens.pad_token_num,
-        start_token_num=special_tokens.start_token_num,
-        end_token_num=special_tokens.end_token_num,
-        unk_token_num=special_tokens.unk_token_num,
+        pad_token=special_tokens['tokens']['pad_token'],
+        start_token=special_tokens['tokens']['start_token'],
+        end_token=special_tokens['tokens']['end_token'],
+        unk_token=special_tokens['tokens']['unk_token'],
+        pad_token_num=special_tokens['token_nums']['pad_token'],
+        start_token_num=special_tokens['token_nums']['start_token'],
+        end_token_num=special_tokens['token_nums']['end_token'],
+        unk_token_num=special_tokens['token_nums']['unk_token'],
     )
     tokenizer.set_vocab(word2idx=word2idx)
 
@@ -49,8 +49,8 @@ def predict(
         esc_flag = True
         while esc_flag:
             next_item = pred.topk(4)[1].view(-1)[top_num].item()
-            if next_item not in [special_tokens.start_token_num, special_tokens.pad_token_num,
-                                 special_tokens.unk_token_num]:
+            if next_item not in [start_token_num, pad_token_num,
+                                 unk_token_num]:
                 esc_flag = False
             top_num += 1
         next_item = torch.tensor([[next_item]], device=device)
@@ -75,7 +75,7 @@ def main():
 
     begin = 'Using the EAGLE suite of simulations, we demonstrate that both cold gas stripping {\it and} starvation of gas inflow play an important role in quenching satellite galaxies across a range of stellar and halo masses, M⋆ and M200. By quantifying the balance between gas inflows, outflows, and star formation rates, we show that even at z=2, only ≈30% of satellite galaxies are able to maintain equilibrium or grow their reservoir of cool gas - compared to ≈50% of central galaxies at this redshift. We find that the number of orbits completed by a satellite is a very good predictor of its quenching, even more so than the time since infall. On average, we show that intermediate-mass satellites with M⋆ between 109M⊙−1010M⊙ will be quenched at first pericenter in massive group environments, M200>1013.5M⊙; and will be quenched at second pericenter in less massive group environments, M200<1013.5M⊙. On average, more massive satellites (M⋆>1010M⊙) experience longer depletion time-scales, being quenched between first and second pericenters in massive groups; while in smaller group environments, just ≈30% will be quenched even after two orbits. Our results suggest that while starvation alone may be enough to slowly quench satellite galaxies, direct gas stripping, particularly at pericenters, is required to produce the short quenching time-scales exhibited in the simulation.'
 
-    nn_model = torch.load('models/model1/model.pth', map_location=torch.device(device))
+    nn_model = torch.load('models/model1/checkpoints/model.50.pth', map_location=torch.device(device))
     vocab = torch.load('models/model1/vocab.pt', map_location=torch.device(device))
 
     continuation = predict(

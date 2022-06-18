@@ -178,20 +178,23 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
         )
 
         # TODO: expose these parameters to model_config
-        self.resampling_portion = 0.1
-        self.resampling_freq_epochs = 2
+        self.resampling_portion = 0.25
+        self.resampling_freq_epochs = 16
 
         # load glove embedding from file
         self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
             "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
-            top_n=25000
+            top_n=20000
         )
+        self.pretrained_embedding = torch.FloatTensor(self.pretrained_embedding)
+
         self.word2idx = self.tokenizer.word2idx
         self.idx2word = self.tokenizer.idx2word
         self.word2idx_size = self.tokenizer.word2idx_size
 
-        # Reading BillSumV3 dataset
+        torch.save(self.word2idx, "models/" + self.train_params.path_nm + "/vocab.pt")
 
+        # Reading BillSumV3 dataset:
         train_tuples = None
         max_text_len = None
         max_summary_len = None
@@ -205,7 +208,7 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                    f"max_summary_len = {max_summary_len}")
         else:
             train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
-            torch.save((train_tuples, max_text_len, max_summary_len), "cached_data_train.pt")
+            torch.save((train_tuples, max_text_len, max_summary_len), f"cached_data_train.pt")
 
         print(f"num train pairs (text,summary) = {len(train_tuples)}")
         self.train_data = (train_tuples, max_text_len, max_summary_len)
@@ -272,6 +275,7 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             dim_feedforward=self.model_params.dim_feedforward,
             dropout_p=self.model_params.dropout_p,
         )
+        self.nn_model.load_and_freeze_pretrained_embedding(self.pretrained_embedding)
 
 
     def nn_forward(self, batch, print_enabled=False):
