@@ -3,19 +3,20 @@ import torch.nn as nn
 import torch.optim as top
 import matplotlib
 import jsonlines
-
+import numpy as np
 
 from transformer_utils import training_setup_abstract
 from transformer_utils import model
 from transformer_utils.tokenizer import TokenizerLanguageModel, TokenizerCollection
 
-from transformer_utils.model_constants import *
-from transformer_utils.data_loader import DatasetSummarizerBillSumv3
+# from transformer_utils.model_constants import *
+from transformer_utils.data_loader import DatasetSummarizerBPE
 
 matplotlib.use("Agg")
 
 import os
 import random
+from bpemb import BPEmb
 
 
 class ModelParams(training_setup_abstract.ModelParams):
@@ -28,109 +29,22 @@ class TrainParams(training_setup_abstract.TrainParams):
 
 class SummarizerSetup(training_setup_abstract.TrainingSetup):
 
-    # @staticmethod
-    # def read_files(src_dir: str, tgt_dir: str):
-    #
-    #     # src_path_list = glob.glob('data/src/*.txt')
-    #     src_path_list = glob.glob(src_dir + "/*.txt")
-    #     src_list = []
-    #     for el in src_path_list:
-    #         f = open(el, 'r', encoding='utf-8')
-    #         text = f.read()
-    #         src_list.append(text)
-    #         f.close()
-    #
-    #     # tgt_path_list = glob.glob('data/tgt/*.txt')
-    #     tgt_path_list = glob.glob(tgt_dir + '/*.txt')
-    #     tgt_list = []
-    #     for el in tgt_path_list:
-    #         f = open(el, 'r', encoding='utf-8')
-    #         text = f.read()
-    #         tgt_list.append(text)
-    #         f.close()
-    #
-    #     if len(src_list) != len(tgt_list):
-    #         raise RuntimeError('the number of src samples is not equal to the number of tgt samples')
-    #
-    #     return src_list, tgt_list
-    #
-    # @staticmethod
-    # def train_val_test_split(
-    #         src: list,
-    #         tgt: list,
-    #         ratio=(7, 2, 1),
-    # ):
-    #     seq_len = len(src)
-    #     weight = []
-    #     s = 0
-    #     for el in (7, 2, 1):
-    #         if el < 0:
-    #             raise ValueError('ratio elements must be >= 0')
-    #         s += el
-    #         weight.append(s)
-    #     weight = [int(w * seq_len / s) for w in weight]
-    #
-    #     idx = np.arange(seq_len)
-    #     random.shuffle(idx)
-    #
-    #     train_idx = idx[:weight[0]]
-    #     val_idx = idx[weight[0]:weight[1]]
-    #     test_idx = idx[weight[1]:]
-    #
-    #     train_src = [src[i] for i in train_idx]
-    #     val_src = [src[i] for i in val_idx]
-    #     test_src = [src[i] for i in test_idx]
-    #
-    #     train_tgt = [tgt[i] for i in train_idx]
-    #     val_tgt = [tgt[i] for i in val_idx]
-    #     test_tgt = [tgt[i] for i in test_idx]
-    #
-    #     src_out = [train_src, val_src, test_src]
-    #     tgt_out = [train_tgt, val_tgt, test_tgt]
-    #
-    #     return src_out, tgt_out
-    #
-    # def data_cleanup(
-    #         self,
-    #         src,
-    #         tgt,
-    #         tokenizer,
-    # ):
-    #     src_out = []
-    #     tgt_out = []
-    #
-    #     src_max_len = -1
-    #     tgt_max_len = -1
-    #
-    #     for i in range(len(src)):
-    #         src_out_i = []
-    #         tgt_out_i = []
-    #
-    #         for j in range(len(src[i])):
-    #             src_out_i.append(self.tokenizer.cleanup(src[i][j], tokenizer))
-    #             tgt_out_i.append(self.tokenizer.cleanup(tgt[i][j], tokenizer))
-    #
-    #             src_max_len = max(src_max_len, len(src_out_i[-1]))
-    #             tgt_max_len = max(tgt_max_len, len(tgt_out_i[-1]))
-    #
-    #         src_out.append(src_out_i)
-    #         tgt_out.append(tgt_out_i)
-    #
-    #     words = []
-    #     for i in range(len(src_out[0])):
-    #         for el in src_out[0][i]:
-    #             words.append(el)
-    #
-    #     for i in range(len(tgt_out[0])):
-    #         for el in tgt_out[0][i]:
-    #             words.append(el)
-    #
-    #     return src_out, tgt_out, words, src_max_len, tgt_max_len
+    def __init__(self,
+                 is_gpu: bool,
+                 is_resume_mode: bool,
+                 train_params: TrainParams,
+                 model_params: ModelParams):
+        super(SummarizerSetup, self).__init__(is_gpu=is_gpu,
+                                              is_resume_mode=is_resume_mode,
+                                              train_params=train_params,
+                                              model_params=model_params)
 
-    def load_billsumv3(self, filepath: str) -> tuple:
-        """ :param filepath - path to *.jsonl from BillSumv3 dataset
-            :return list of tuples (text, summary) which are encoded with tokenizer already
-        """
+        self.bpe_embedding_dim = 50
+        self.bpemb_en = BPEmb(lang="en", dim=self.bpe_embedding_dim)
+        self.pad_token_index = None
+
+    def load_billsumv3(self, filepath: str):
+        """ :param filepath - path to *.jsonl from BillSumv3 dataset """
         data_tuples = []
         max_text_len = 0
         max_summary_len = 0
@@ -141,71 +55,187 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                 summary = line['summary']
                 title = line['title']
 
-                # encode text
-                text = self.tokenizer.cleanup(text, tokenizer=TokenizerCollection.basic_english_by_word)
-                text = self.tokenizer.encode_seq(text)
+                # THIS IS FOR TEST ONLY:
+                text = text[:500]
+                summary = summary[:150]
 
-                # encode summary
-                summary = self.tokenizer.cleanup(summary, tokenizer=TokenizerCollection.basic_english_by_word)
-                summary = self.tokenizer.encode_seq(summary)
+                # encode text and summary with bpemb
+                text_ids = self.bpemb_en.encode_ids(text)
+                summary_ids = self.bpemb_en.encode_ids(summary)
 
-                # data_tuples will be passed to the Dataset
-                data_tuples.append((text, summary))
-                if max_text_len < len(text):
-                    max_text_len = len(text)
-                if max_summary_len < len(summary):
-                    max_summary_len = len(summary)
+                data_tuples.append((text_ids, summary_ids))
+                if max_text_len < len(text_ids):
+                    max_text_len = len(text_ids)
+                if max_summary_len < len(summary_ids):
+                    max_summary_len = len(summary_ids)
 
         return data_tuples, max_text_len, max_summary_len
 
+        # data_tuples = []
+        # max_text_len = 0
+        # max_summary_len = 0
+        # with jsonlines.open(filepath) as f:
+        #     print(f"Encoding text and summary strings ...")
+        #     for line in f.iter():
+        #         text = line['text']
+        #         summary = line['summary']
+        #         title = line['title']
+        #
+        #         # encode text
+        #         text = self.tokenizer.cleanup(text, tokenizer=TokenizerCollection.basic_english_by_word)
+        #         text = self.tokenizer.encode_seq(text)
+        #
+        #         # encode summary
+        #         summary = self.tokenizer.cleanup(summary, tokenizer=TokenizerCollection.basic_english_by_word)
+        #         summary = self.tokenizer.encode_seq(summary)
+        #
+        #         # data_tuples will be passed to the Dataset
+        #         data_tuples.append((text, summary))
+        #         if max_text_len < len(text):
+        #             max_text_len = len(text)
+        #         if max_summary_len < len(summary):
+        #             max_summary_len = len(summary)
+        #
+        # return data_tuples, max_text_len, max_summary_len
 
-    def load_data(
-            self,
-            train_path: str,
-            test_path: str,
-            val_path: str,
-    ):
-        """ Reads file, tokenize and prepare tensors to train """
-        self.tokenizer = TokenizerLanguageModel(
-            pad_token=special_tokens['tokens']['pad_token'],
-            start_token=special_tokens['tokens']['start_token'],
-            end_token=special_tokens['tokens']['end_token'],
-            unk_token=special_tokens['tokens']['unk_token'],
-            pad_token_num=special_tokens['token_nums']['pad_token'],
-            start_token_num=special_tokens['token_nums']['start_token'],
-            end_token_num=special_tokens['token_nums']['end_token'],
-            unk_token_num=special_tokens['token_nums']['unk_token'],
-        )
+    # def load_data(
+    #         self,
+    #         train_path: str,
+    #         test_path: str,
+    #         val_path: str,
+    # ):
+    #     """ Reads file, tokenize and prepare tensors to train """
+    #     self.tokenizer = TokenizerLanguageModel(
+    #         pad_token=special_tokens['tokens']['pad_token'],
+    #         start_token=special_tokens['tokens']['start_token'],
+    #         end_token=special_tokens['tokens']['end_token'],
+    #         unk_token=special_tokens['tokens']['unk_token'],
+    #         pad_token_num=special_tokens['token_nums']['pad_token'],
+    #         start_token_num=special_tokens['token_nums']['start_token'],
+    #         end_token_num=special_tokens['token_nums']['end_token'],
+    #         unk_token_num=special_tokens['token_nums']['unk_token'],
+    #     )
+    #
+    #     # TODO: expose these parameters to model_config
+    #     self.resampling_portion = 0.25
+    #     self.resampling_freq_epochs = 16
+    #
+    #     # load glove embedding from file
+    #     self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
+    #         "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
+    #         top_n=20000
+    #     )
+    #     self.pretrained_embedding = torch.FloatTensor(self.pretrained_embedding)
+    #
+    #     self.word2idx = self.tokenizer.word2idx
+    #     self.idx2word = self.tokenizer.idx2word
+    #     self.word2idx_size = self.tokenizer.word2idx_size
+    #
+    #     torch.save(self.word2idx, "models/" + self.train_params.path_nm + "/vocab.pt")
+    #
+    #     # Reading BillSumV3 dataset:
+    #     train_tuples = None
+    #     max_text_len = None
+    #     max_summary_len = None
+    #
+    #     # Train file -> self.train_data as tuple (array, max_text_len, max_summary_len)
+    #     if os.path.isfile("cached_data_train.pt"):      # load cached data to avoid encoding again
+    #         train_tuples, max_text_len, max_summary_len = torch.load("cached_data_train.pt")
+    #         print (f"loaded cached train data, "
+    #                f"len(train_tuples) = {len(train_tuples)}, "
+    #                f"max_text_len = {max_text_len}, "
+    #                f"max_summary_len = {max_summary_len}")
+    #     else:
+    #         train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
+    #         torch.save((train_tuples, max_text_len, max_summary_len), f"cached_data_train.pt")
+    #
+    #     print(f"num train pairs (text,summary) = {len(train_tuples)}")
+    #     self.train_data = (train_tuples, max_text_len, max_summary_len)
+    #     del train_tuples  # cleanup memory
+    #
+    #
+    #     # Validation file -> self.val_data as tuple (array, max_text_len, max_summary_len)
+    #     val_tuples = None
+    #     if os.path.isfile("cached_data_val.pt"):      # load cached data to avoid encoding again
+    #         val_tuples, max_text_len, max_summary_len = torch.load("cached_data_val.pt")
+    #         print(f"loaded cached validation data, "
+    #               f"len(val_tuples) = {len(val_tuples)}, "
+    #               f"max_text_len = {max_text_len}, "
+    #               f"max_summary_len = {max_summary_len}")
+    #     else:
+    #         val_tuples, max_text_len, max_summary_len = self.load_billsumv3(val_path)
+    #         torch.save((val_tuples, max_text_len, max_summary_len), "cached_data_val.pt")
+    #
+    #     print(f"num val pairs (text,summary) = {len(val_tuples)}")
+    #     self.val_dataset = DatasetSummarizerBillSumv3(val_tuples,
+    #                                                   max_text_len,
+    #                                                   max_summary_len,
+    #                                                   start_token=start_token,
+    #                                                   end_token=end_token,
+    #                                                   pad_token=pad_token,
+    #                                                   vocab=self.word2idx)
+    #     del val_tuples  # cleanup memory
+    #
+    #
+    #     # Test file -> test dataset
+    #     test_tuples = None
+    #     if os.path.isfile("cached_data_test.pt"):      # load cached data to avoid encoding again
+    #         test_tuples, max_text_len, max_summary_len = torch.load("cached_data_test.pt")
+    #         print(f"loaded cached test data, "
+    #               f"len(test_tuples) = {len(test_tuples)}, "
+    #               f"max_text_len = {max_text_len}, "
+    #               f"max_summary_len = {max_summary_len}")
+    #     else:
+    #         test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
+    #         torch.save((test_tuples, max_text_len, max_summary_len), "cached_data_test.pt")
+    #
+    #     # test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
+    #     print(f"num test pairs (text,summary) = {len(test_tuples)}")
+    #     self.test_dataset = DatasetSummarizerBillSumv3(test_tuples,
+    #                                                    max_text_len,
+    #                                                    max_summary_len,
+    #                                                    start_token=start_token,
+    #                                                    end_token=end_token,
+    #                                                    pad_token=pad_token,
+    #                                                    vocab=self.word2idx)
+    #     del test_tuples  # cleanup memory
 
-        # TODO: expose these parameters to model_config
+    def load_data(self,
+                  train_path: str,
+                  test_path: str,
+                  val_path: str):
+
+        # 1. Resampling params (todo: move to other params)
         self.resampling_portion = 0.25
         self.resampling_freq_epochs = 16
 
-        # load glove embedding from file
-        self.pretrained_embedding = self.tokenizer.load_pretrained_embedding(
-            "pretrained_embedding_vocab/glove.6B.50d.top30K.txt",
-            top_n=20000
-        )
-        self.pretrained_embedding = torch.FloatTensor(self.pretrained_embedding)
+        # 2. Load embedding vectors
+        embedding_vectors = self.bpemb_en.vectors
 
-        self.word2idx = self.tokenizer.word2idx
-        self.idx2word = self.tokenizer.idx2word
-        self.word2idx_size = self.tokenizer.word2idx_size
+        # add padding token and respective random vector to the embedding,
+        # because 'bpemb_en' doesn't have <pad> by default
+        random_pad_vector = np.random.random((1, self.bpe_embedding_dim))
+        embedding_vectors = np.append(embedding_vectors, random_pad_vector, axis=0)
+        self.pad_token_index = embedding_vectors.shape[0] - 1
 
+        self.pretrained_embedding = torch.FloatTensor(embedding_vectors)
+
+        # 4. save vocab to vocab.pt file
+        key_to_index = self.bpemb_en.emb.key_to_index
+        key_to_index["<pad>"] = self.pad_token_index  # add as the last element in the vocab
+        # if vocab size = 10001, index of <pad> is 10000
+        self.word2idx = key_to_index
+        self.word2idx_size = len(self.word2idx)
         torch.save(self.word2idx, "models/" + self.train_params.path_nm + "/vocab.pt")
 
-        # Reading BillSumV3 dataset:
-        train_tuples = None
-        max_text_len = None
-        max_summary_len = None
-
+        # 5. Load data:
         # Train file -> self.train_data as tuple (array, max_text_len, max_summary_len)
-        if os.path.isfile("cached_data_train.pt"):      # load cached data to avoid encoding again
+        if os.path.isfile("cached_data_train.pt"):  # load cached data to avoid encoding again
             train_tuples, max_text_len, max_summary_len = torch.load("cached_data_train.pt")
-            print (f"loaded cached train data, "
-                   f"len(train_tuples) = {len(train_tuples)}, "
-                   f"max_text_len = {max_text_len}, "
-                   f"max_summary_len = {max_summary_len}")
+            print(f"loaded cached train data, "
+                  f"len(train_tuples) = {len(train_tuples)}, "
+                  f"max_text_len = {max_text_len}, "
+                  f"max_summary_len = {max_summary_len}")
         else:
             train_tuples, max_text_len, max_summary_len = self.load_billsumv3(train_path)
             torch.save((train_tuples, max_text_len, max_summary_len), f"cached_data_train.pt")
@@ -214,10 +244,8 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
         self.train_data = (train_tuples, max_text_len, max_summary_len)
         del train_tuples  # cleanup memory
 
-
         # Validation file -> self.val_data as tuple (array, max_text_len, max_summary_len)
-        val_tuples = None
-        if os.path.isfile("cached_data_val.pt"):      # load cached data to avoid encoding again
+        if os.path.isfile("cached_data_val.pt"):  # load cached data to avoid encoding again
             val_tuples, max_text_len, max_summary_len = torch.load("cached_data_val.pt")
             print(f"loaded cached validation data, "
                   f"len(val_tuples) = {len(val_tuples)}, "
@@ -228,19 +256,17 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             torch.save((val_tuples, max_text_len, max_summary_len), "cached_data_val.pt")
 
         print(f"num val pairs (text,summary) = {len(val_tuples)}")
-        self.val_dataset = DatasetSummarizerBillSumv3(val_tuples,
-                                                      max_text_len,
-                                                      max_summary_len,
-                                                      start_token=start_token,
-                                                      end_token=end_token,
-                                                      pad_token=pad_token,
-                                                      vocab=self.word2idx)
+        self.val_dataset = DatasetSummarizerBPE(val_tuples,
+                                                max_text_len,
+                                                max_summary_len,
+                                                start_token_num=self.bpemb_en.BOS,
+                                                end_token_num=self.bpemb_en.EOS,
+                                                pad_token_num=self.pad_token_index)
+
         del val_tuples  # cleanup memory
 
-
         # Test file -> test dataset
-        test_tuples = None
-        if os.path.isfile("cached_data_test.pt"):      # load cached data to avoid encoding again
+        if os.path.isfile("cached_data_test.pt"):  # load cached data to avoid encoding again
             test_tuples, max_text_len, max_summary_len = torch.load("cached_data_test.pt")
             print(f"loaded cached test data, "
                   f"len(test_tuples) = {len(test_tuples)}, "
@@ -250,20 +276,14 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
             torch.save((test_tuples, max_text_len, max_summary_len), "cached_data_test.pt")
 
-        # test_tuples, max_text_len, max_summary_len = self.load_billsumv3(test_path)
         print(f"num test pairs (text,summary) = {len(test_tuples)}")
-        self.test_dataset = DatasetSummarizerBillSumv3(test_tuples,
-                                                       max_text_len,
-                                                       max_summary_len,
-                                                       start_token=start_token,
-                                                       end_token=end_token,
-                                                       pad_token=pad_token,
-                                                       vocab=self.word2idx)
+        self.test_dataset = DatasetSummarizerBPE(test_tuples,
+                                                 max_text_len,
+                                                 max_summary_len,
+                                                 start_token_num=self.bpemb_en.BOS,
+                                                 end_token_num=self.bpemb_en.EOS,
+                                                 pad_token_num=self.pad_token_index)
         del test_tuples  # cleanup memory
-
-
-
-
 
     def setup_nn(self):
         self.nn_model = model.TransformerLanguageModel(
@@ -276,7 +296,6 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             dropout_p=self.model_params.dropout_p,
         )
         self.nn_model.load_and_freeze_pretrained_embedding(self.pretrained_embedding)
-
 
     def nn_forward(self, batch, print_enabled=False):
         """ Helper function to be invoked everywhere on training, validation and test stages
@@ -291,8 +310,11 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
         # Get mask to mask out the next words
         sequence_length = tgt_input.size(1)
         tgt_mask = self.nn_model.get_tgt_mask(sequence_length).to(self.device)
-        src_key_padding_mask = self.nn_model.create_pad_mask(src, self.tokenizer.pad_token_num)
-        tgt_key_padding_mask = self.nn_model.create_pad_mask(tgt_input, self.tokenizer.pad_token_num)
+        # src_key_padding_mask = self.nn_model.create_pad_mask(src, self.tokenizer.pad_token_num)
+        # tgt_key_padding_mask = self.nn_model.create_pad_mask(tgt_input, self.tokenizer.pad_token_num)
+
+        src_key_padding_mask = self.nn_model.create_pad_mask(src, self.pad_token_index)
+        tgt_key_padding_mask = self.nn_model.create_pad_mask(tgt_input, self.pad_token_index)
 
         # Standard training except we pass in y_input and tgt_mask
         pred = self.nn_model(
@@ -325,11 +347,10 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
 
         return pred, loss
 
-
     def predict(self, input_sequence, max_length=10):
         """ Infer sequence from input_sequence """
         self.nn_model.eval()
-        y_input = torch.tensor([[start_token_num]], dtype=torch.long, device=self.device)
+        y_input = torch.tensor([[self.bpemb_en.BOS]], dtype=torch.long, device=self.device)
 
         for _ in range(max_length):
             # Get source mask
@@ -340,15 +361,18 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             next_item = pred.topk(1)[1].view(-1)[-1].item()  # num with highest probability
             next_item = torch.tensor([[next_item]], device=self.device)
 
+            # ignore <pad> tokens
+            if next_item == self.pad_token_index:
+                continue
+
             # Concatenate previous input with predicted best word
             y_input = torch.cat((y_input, next_item), dim=1)
 
             # Stop if model predicts end of sentence
-            if next_item.view(-1).item() == end_token_num:
+            if next_item.view(-1).item() == self.bpemb_en.EOS:
                 break
 
         return y_input.view(-1).tolist()
-
 
     def setup_optimizers(self):
         self.optimizer = top.Adam(self.nn_model.parameters(),
@@ -360,7 +384,6 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                                                                     threshold=0.001,
                                                                     factor=0.5)
 
-
     def resampling(self):
         """ Overriding method from the parent class """
         if 0 < self.resampling_portion < 1:
@@ -370,12 +393,11 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             n_how_much = int(full_data_size * self.resampling_portion)
             subsample = random.sample(self.train_data[0], n_how_much)
 
-            self.train_dataset = DatasetSummarizerBillSumv3(subsample,
-                                                            src_max_len=self.train_data[1],
-                                                            tgt_max_len=self.train_data[2],
-                                                            start_token=start_token,
-                                                            end_token=end_token,
-                                                            pad_token=pad_token,
-                                                            vocab=self.word2idx)
-        return super(SummarizerSetup, self).resampling()
+            self.train_dataset = DatasetSummarizerBPE(subsample,
+                                                      src_max_len=self.train_data[1],
+                                                      tgt_max_len=self.train_data[2],
+                                                      start_token_num=self.bpemb_en.BOS,
+                                                      end_token_num=self.bpemb_en.EOS,
+                                                      pad_token_num=self.pad_token_index)
 
+        return super(SummarizerSetup, self).resampling()

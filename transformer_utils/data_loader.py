@@ -108,6 +108,40 @@ class DatasetSummarizerBillSumv3(Dataset):
         return [src_padded, tgt_padded]
 
 
+
+class DatasetSummarizerBPE(Dataset):
+    def __init__(self, text_summary_tuples,
+                 src_max_len,
+                 tgt_max_len,
+                 start_token_num,
+                 end_token_num,
+                 pad_token_num):
+
+        self.tuples = text_summary_tuples  # each element is a tuple (text, summary)
+        self.src_max_len = src_max_len
+        self.tgt_max_len = tgt_max_len
+        self.start_token_num = start_token_num
+        self.end_token_num = end_token_num
+        self.pad_token_num = pad_token_num
+
+
+    def __len__(self):
+        return len(self.tuples)
+
+    def __getitem__(self, index):
+        src = self.tuples[index][0]
+        tgt = self.tuples[index][1]
+
+        src_padded = np.array([self.start_token_num] + src + [self.end_token_num] + [self.pad_token_num] * max(0,
+                                                                                                               self.src_max_len - len(
+                                                                                                                   src)))
+        tgt_padded = np.array([self.start_token_num] + tgt + [self.end_token_num] + [self.pad_token_num] * max(0,
+                                                                                                               self.tgt_max_len - len(
+                                                                                                                   tgt)))
+        return [src_padded, tgt_padded]
+
+
+
 class DatasetClassifierModel(Dataset):
     def __init__(
             self,
