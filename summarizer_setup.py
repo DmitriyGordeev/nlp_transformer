@@ -206,7 +206,7 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
                   val_path: str):
 
         # 1. Resampling params (todo: move to other params)
-        self.resampling_portion = 0.25
+        self.resampling_portion = 0.01
         self.resampling_freq_epochs = 16
 
         # 2. Load embedding vectors
@@ -340,9 +340,23 @@ class SummarizerSetup(training_setup_abstract.TrainingSetup):
             # decode src, tgt and prediction into human-readable string
             print("=================================================================")
             print(f"Predicted sequence, max_inference_len = {self.train_params.inference_max_len} : ")
-            print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}")
-            print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}")
-            print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}")
+            # print(f"src  = {' '.join(self.tokenizer.decode_seq(src[0, :].view(-1).tolist()))}")
+            # print(f"tgt  = {' '.join(self.tokenizer.decode_seq(tgt_expected[0, :].view(-1).tolist()))}")
+            # print(f"pred = {' '.join(self.tokenizer.decode_seq(predicted_sequence))}")
+
+            src_ids = src[0, :].view(-1).tolist()
+            tgt_ids = tgt_expected[0, :].view(-1).tolist()
+            pred_ids = predicted_sequence
+
+            # remove pad token (because self.bpemb_en doesn't have it)
+            src_ids = [x for x in src_ids if x != self.pad_token_index]
+            tgt_ids = [x for x in tgt_ids if x != self.pad_token_index]
+            pred_ids = [x for x in pred_ids if x != self.pad_token_index]
+
+            print(f"src  = {self.bpemb_en.decode_ids(src_ids)}")
+            print(f"tgt  = {self.bpemb_en.decode_ids(tgt_ids)}")
+            print(f"pred = {self.bpemb_en.decode_ids(pred_ids)}")
+
             print("=================================================================")
 
         return pred, loss

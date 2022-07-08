@@ -47,6 +47,11 @@ class TestBPE(unittest.TestCase):
         pass
 
 
+    def test_list_remove(self):
+        L = [0, 2, 3, 10000, 3, 10000, 4, 10000, -1, 9]
+        L = [x for x in L if x != 10000]
+
+        pass
 
 
 
