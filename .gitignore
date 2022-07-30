@@ -8,4 +8,6 @@ models
 runs
 trash.py
 model.jit
+cached_data_*.pt\
+bpe_model/
 cached_data_*.pt

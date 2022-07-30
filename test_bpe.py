@@ -2,12 +2,20 @@ import unittest
 from bpemb import BPEmb
 import jsonlines
 import numpy as np
+import os
+from pathlib import Path
+from datasets import load_dataset
+
 
 
 class TestBPE(unittest.TestCase):
 
+
     def test_methods(self):
-        bpemb_en = BPEmb(lang="en", dim=50)
+
+        # is_file = os.path.isfile("C:/Users/Администратор/.cache/bpemb/en/en.wiki.bpe.vs10000.model")
+
+        bpemb_en = BPEmb(lang="en", dim=50, cache_dir=Path("bpe_model/"))
 
         s = "Hey, wanna some coffee?"
         v = bpemb_en.encode(s)
@@ -21,7 +29,7 @@ class TestBPE(unittest.TestCase):
 
 
     def test_encode_billsumv3(self):
-        bpemb_en = BPEmb(lang="en", dim=50)
+        bpemb_en = BPEmb(lang="en", dim=50, cache_dir=Path("bpe_model/"))
 
         filepath = "data/summarizer_billsum_v3/ca_test_data_final_OFFICIAL.jsonl"
         data_tuples = []
@@ -54,6 +62,12 @@ class TestBPE(unittest.TestCase):
         pass
 
 
+    def test_multi_news_summary_dataset(self):
+        dataset = load_dataset("multi_news")
 
+        pass
+
+        # dataset["test"][0]["document"]
+        # dataset["test"][0]["summary"]
 
 
